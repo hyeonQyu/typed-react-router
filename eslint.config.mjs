@@ -18,6 +18,9 @@ export default [
           jsx: true,
         },
       },
+      globals: {
+        console: 'readonly',
+      },
     },
     plugins: {
       '@typescript-eslint': tseslint,
