@@ -2,41 +2,46 @@ import { ReactNode } from 'react';
 
 export type BaseMetadata = NonNullable<unknown>;
 
-export type RouteNode<TMetadata extends BaseMetadata> = {
-  _metadata: RouteNodeMetadata<TMetadata>;
+export type RouteNode<TMetadata extends BaseMetadata, TContext> = {
+  _metadata: RouteNodeMetadata<TMetadata, TContext>;
   _component: ReactNode;
 };
 
-export type RouteNodeMetadata<TMetadata extends BaseMetadata> = {
+export type RouteNodeMetadata<TMetadata extends BaseMetadata, TContext> = {
   title?: string;
   label?: string;
   description?: string;
-  href?: () => string | undefined;
-  accessible?: () => boolean | undefined;
+  href?: (context: TContext) => string;
+  accessible?: (context: TContext) => boolean;
 } & TMetadata;
 
-export type PartialRouteTree<TMetadata extends BaseMetadata> = {
-  [key: string]: RouteNode<TMetadata> | PartialRouteTree<TMetadata>;
+export type PartialRouteTree<TMetadata extends BaseMetadata, TContext> = {
+  [key: string]: RouteNode<TMetadata, TContext> | PartialRouteTree<TMetadata, TContext>;
 };
 
-type ExtractChildRoutes<TMetadata extends BaseMetadata, TSubRouteTree, TRouteTree> = {
+type ExtractChildRoutes<TMetadata extends BaseMetadata, TContext, TSubRouteTree, TRouteTree> = {
   [K in '_metadata' | '_component' | keyof TSubRouteTree]: K extends '_metadata'
-    ? RouteNodeMetadata<TMetadata>
+    ? RouteNodeMetadata<TMetadata, TContext>
     : K extends '_component'
       ? ReactNode
       : K extends keyof TSubRouteTree
-        ? TSubRouteTree[K] extends RouteNode<TMetadata>
+        ? TSubRouteTree[K] extends RouteNode<TMetadata, TContext>
           ? TSubRouteTree[K]
           : TSubRouteTree[K] extends Record<string, unknown>
-            ? ExtractChildRoutes<TMetadata, TSubRouteTree[K], TRouteTree>
+            ? ExtractChildRoutes<TMetadata, TContext, TSubRouteTree[K], TRouteTree>
             : never
         : never;
 };
 
-export type RouteTree<TMetadata extends BaseMetadata, TSubRouteTree extends PartialRouteTree<TMetadata>, TRouteTree = TSubRouteTree> = {
-  [K in keyof TSubRouteTree]: TSubRouteTree[K] extends RouteNode<TMetadata>
+export type RouteTree<
+  TMetadata extends BaseMetadata,
+  TContext,
+  TSubRouteTree extends PartialRouteTree<TMetadata, TContext>,
+  TRouteTree = TSubRouteTree,
+> = {
+  [K in keyof TSubRouteTree]: TSubRouteTree[K] extends RouteNode<TMetadata, TContext>
     ? TSubRouteTree[K]
     : TSubRouteTree[K] extends Record<string, unknown>
-      ? ExtractChildRoutes<TMetadata, TSubRouteTree[K], TRouteTree>
+      ? ExtractChildRoutes<TMetadata, TContext, TSubRouteTree[K], TRouteTree>
       : never;
 };
