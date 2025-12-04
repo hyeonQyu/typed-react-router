@@ -1,4 +1,2 @@
-export const testFunction = (): void => {
-  // Empty function for testing build
-};
-
+export * from './routes.types';
+export * from './routes.utils';
