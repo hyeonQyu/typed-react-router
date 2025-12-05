@@ -26,6 +26,8 @@ export const createAppRoutes =
       useAppRoutes,
       useCurrentRouteNode,
       _types: {} as {
+        AppRoutesMetadata: TMetadata;
+        AppRoutesContext: TContext;
         AppRoutesPathname: RoutePathname<TMetadata, TContext, TRouteTree>;
       },
     };
