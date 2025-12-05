@@ -1,5 +1,5 @@
 import { createContext, ReactNode, useContext } from 'react';
-import { BaseMetadata, PartialRouteTree, RouteTree } from './routes.types';
+import { BaseMetadata, PartialRouteTree, RoutePathname, RouteTree } from './routes.types';
 
 export const createAppRoutes =
   <TMetadata extends BaseMetadata, TContext>() =>
@@ -17,5 +17,8 @@ export const createAppRoutes =
     return {
       AppRoutesProvider,
       useAppRoutes,
+      _types: {} as {
+        AppRoutesPathname: RoutePathname<TMetadata, TContext, TRouteTree>;
+      },
     };
   };

@@ -1,4 +1,5 @@
 import { ReactNode } from 'react';
+import { Paths } from './path.types';
 
 export type BaseMetadata = NonNullable<unknown>;
 
@@ -45,3 +46,8 @@ export type RouteTree<
       ? ExtractChildRoutes<TMetadata, TContext, TSubRouteTree[K], TRouteTree>
       : never;
 };
+
+export type RoutePathname<TMetadata extends BaseMetadata, TContext, TRouteTree extends PartialRouteTree<TMetadata, TContext>> = Exclude<
+  Paths<TRouteTree, '/', ''>,
+  `${string}/_metadata${string}` | `${string}/_component${string}`
+>;
