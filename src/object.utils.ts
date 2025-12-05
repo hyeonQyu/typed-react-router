@@ -1,0 +1,22 @@
+import { Paths, PathValue } from './path.types';
+
+export const getSafely = <TObject, TSplitter extends string, TPath extends string & Paths<TObject, TSplitter>>(
+  splitter: TSplitter,
+  obj: TObject,
+  path: TPath,
+): PathValue<TObject, TPath, TSplitter> => {
+  if (path === '' || path === splitter) return obj as PathValue<TObject, TPath, TSplitter>;
+
+  const keys = (path as string).split(splitter);
+  let value: unknown = obj;
+
+  for (const key of keys) {
+    if (typeof value === 'object' && value !== null && key in value) {
+      value = (value as Record<string, unknown>)[key];
+    } else {
+      return undefined as PathValue<TObject, TPath, TSplitter>;
+    }
+  }
+
+  return value as PathValue<TObject, TPath, TSplitter>;
+};
