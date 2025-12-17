@@ -5,6 +5,10 @@
   "author": "hyeonQyu <dhk0561@naver.com>",
   "license": "MIT",
   "packageManager": "yarn@4.11.0",
+  "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
   "repository": {
     "type": "git",
     "url": "https://github.com/hyeonQyu/typed-react-router.git"
@@ -21,37 +25,14 @@
     "type-safe",
     "information-architecture"
   ],
-  "main": "dist/index.js",
-  "module": "dist/index.mjs",
-  "types": "dist/index.d.ts",
-  "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.mjs",
-      "require": "./dist/index.js"
-    },
-    "./package.json": "./package.json"
-  },
-  "sideEffects": false,
-  "files": [
-    "dist",
-    "README.md",
-    "LICENSE"
-  ],
   "scripts": {
-    "build": "tsup",
-    "dev": "tsup --watch",
-    "lint": "eslint . --ext .ts,.tsx",
-    "lint:fix": "eslint . --ext .ts,.tsx --fix",
-    "format": "prettier --write \"src/**/*.{ts,tsx,json,md}\"",
-    "format:check": "prettier --check \"src/**/*.{ts,tsx,json,md}\"",
-    "type": "tsc --noEmit",
-    "prepublishOnly": "yarn build"
-  },
-  "peerDependencies": {
-    "react": "^16.8.0 || ^17.0.0 || ^18.0.0",
-    "react-dom": "^16.8.0 || ^17.0.0 || ^18.0.0",
-    "react-router-dom": "^6.0.0"
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "lint": "turbo run lint",
+    "lint:fix": "turbo run lint:fix",
+    "format": "prettier --write \"packages/**/src/**/*.{ts,tsx,json,md}\"",
+    "format:check": "prettier --check \"packages/**/src/**/*.{ts,tsx,json,md}\"",
+    "type": "turbo run type"
   },
   "devDependencies": {
     "@types/node": "^24.10.1",
@@ -69,12 +50,10 @@
     "react-dom": "^19.2.0",
     "react-router-dom": "^7.9.6",
     "tsup": "^8.5.1",
+    "turbo": "^2.3.3",
     "typescript": "^5.9.3"
   },
   "engines": {
     "node": ">=18.0.0"
-  },
-  "publishConfig": {
-    "access": "public"
   }
 }

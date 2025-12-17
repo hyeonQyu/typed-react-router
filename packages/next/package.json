@@ -1,0 +1,66 @@
+{
+  "name": "@typed-react-router/next",
+  "version": "0.1.0",
+  "description": "Type-safe IA-first routing for Next.js",
+  "author": "hyeonQyu <dhk0561@naver.com>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/hyeonQyu/typed-react-router.git"
+  },
+  "homepage": "https://github.com/hyeonQyu/typed-react-router#readme",
+  "bugs": {
+    "url": "https://github.com/hyeonQyu/typed-react-router/issues"
+  },
+  "keywords": [
+    "react",
+    "next",
+    "nextjs",
+    "routing",
+    "typescript",
+    "type-safe",
+    "information-architecture"
+  ],
+  "main": "./dist/index.js",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "sideEffects": false,
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "lint": "eslint . --ext .ts,.tsx",
+    "lint:fix": "eslint . --ext .ts,.tsx --fix",
+    "type": "tsc --noEmit"
+  },
+  "peerDependencies": {
+    "next": "^13.0.0 || ^14.0.0 || ^15.0.0",
+    "react": "^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0"
+  },
+  "dependencies": {
+    "@typed-react-router/core": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.5",
+    "react": "^19.2.0",
+    "typescript": "^5.9.3"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}
