@@ -14,6 +14,12 @@
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
     "isolatedModules": true,
-    "noEmit": true
+    "noEmit": true,
+    "baseUrl": ".",
+    "paths": {
+      "@typed-react-router/core": ["./packages/core/src"],
+      "@typed-react-router/react": ["./packages/react/src"],
+      "@typed-react-router/next": ["./packages/next/src"]
+    }
   }
 }

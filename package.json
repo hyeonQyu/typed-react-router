@@ -32,7 +32,8 @@
     "lint:fix": "turbo run lint:fix",
     "format": "prettier --write \"packages/**/src/**/*.{ts,tsx,json,md}\"",
     "format:check": "prettier --check \"packages/**/src/**/*.{ts,tsx,json,md}\"",
-    "type": "turbo run type"
+    "type": "turbo run type",
+    "react": "yarn workspace @typed-react-router/react"
   },
   "devDependencies": {
     "@types/node": "^24.10.1",
