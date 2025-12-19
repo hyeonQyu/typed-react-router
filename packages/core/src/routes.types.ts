@@ -1,11 +1,9 @@
-import { ReactNode } from 'react';
 import { Paths } from './path.types';
 
 export type BaseMetadata = NonNullable<unknown>;
 
 export type RouteNode<TMetadata extends BaseMetadata, TContext> = {
   _metadata: RouteNodeMetadata<TMetadata, TContext>;
-  _component: ReactNode;
 };
 
 export type RouteNodeMetadata<TMetadata extends BaseMetadata, TContext> = {
@@ -21,17 +19,15 @@ export type PartialRouteTree<TMetadata extends BaseMetadata, TContext> = {
 };
 
 type ExtractChildRoutes<TMetadata extends BaseMetadata, TContext, TSubRouteTree, TRouteTree> = {
-  [K in '_metadata' | '_component' | keyof TSubRouteTree]: K extends '_metadata'
+  [K in '_metadata' | keyof TSubRouteTree]: K extends '_metadata'
     ? RouteNodeMetadata<TMetadata, TContext>
-    : K extends '_component'
-      ? ReactNode
-      : K extends keyof TSubRouteTree
-        ? TSubRouteTree[K] extends RouteNode<TMetadata, TContext>
-          ? TSubRouteTree[K]
-          : TSubRouteTree[K] extends Record<string, unknown>
-            ? ExtractChildRoutes<TMetadata, TContext, TSubRouteTree[K], TRouteTree>
-            : never
-        : never;
+    : K extends keyof TSubRouteTree
+      ? TSubRouteTree[K] extends RouteNode<TMetadata, TContext>
+        ? TSubRouteTree[K]
+        : TSubRouteTree[K] extends Record<string, unknown>
+          ? ExtractChildRoutes<TMetadata, TContext, TSubRouteTree[K], TRouteTree>
+          : never
+      : never;
 };
 
 export type RouteTree<
@@ -47,7 +43,12 @@ export type RouteTree<
       : never;
 };
 
-export type RoutePathname<TMetadata extends BaseMetadata, TContext, TRouteTree extends PartialRouteTree<TMetadata, TContext>> = Exclude<
-  Paths<TRouteTree, '/', ''>,
-  `${string}/_metadata${string}` | `${string}/_component${string}`
+type RouteTreeWithoutMetadata<T> = {
+  [K in keyof T as K extends '_metadata' ? never : K]: T[K] extends object ? RouteTreeWithoutMetadata<T[K]> : T[K];
+};
+
+export type RoutePathname<TMetadata extends BaseMetadata, TContext, TRouteTree extends PartialRouteTree<TMetadata, TContext>> = Paths<
+  RouteTreeWithoutMetadata<TRouteTree>,
+  '/',
+  ''
 >;
