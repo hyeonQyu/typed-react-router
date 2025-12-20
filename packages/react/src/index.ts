@@ -1,6 +1,6 @@
-import { createAppRoutes as coreCreateAppRoutes } from '@typed-react-router/core';
+import { createAppRoutes as coreCreateAppRoutes } from '@hyeonqyu/typed-router-core';
 import { ReactNode } from 'react';
 
 export const createAppRoutes = <TMetadata extends { component: ReactNode }, TContext>() => coreCreateAppRoutes<TMetadata, TContext>();
 
-export * from '@typed-react-router/core';
+export * from '@hyeonqyu/typed-router-core';

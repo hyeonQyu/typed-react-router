@@ -1,16 +1,16 @@
 {
-  "name": "@typed-react-router/react",
+  "name": "@hyeonqyu/typed-router-react",
   "version": "0.1.0",
   "description": "Type-safe IA-first routing for React Router",
   "author": "hyeonQyu <dhk0561@naver.com>",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/hyeonQyu/typed-react-router.git"
+    "url": "https://github.com/hyeonQyu/typed-router.git"
   },
-  "homepage": "https://github.com/hyeonQyu/typed-react-router#readme",
+  "homepage": "https://github.com/hyeonQyu/typed-router#readme",
   "bugs": {
-    "url": "https://github.com/hyeonQyu/typed-react-router/issues"
+    "url": "https://github.com/hyeonQyu/typed-router/issues"
   },
   "keywords": [
     "react",
@@ -50,7 +50,7 @@
     "react-router-dom": "^6.0.0 || ^7.0.0"
   },
   "dependencies": {
-    "@typed-react-router/core": "workspace:*"
+    "@hyeonqyu/typed-router-core": "workspace:*"
   },
   "devDependencies": {
     "@types/react": "^19.2.5",

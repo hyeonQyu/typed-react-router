@@ -1,1 +1,1 @@
-export * from '@typed-react-router/core';
+export * from '@hyeonqyu/typed-router-core';

@@ -1,10 +1,24 @@
 {
-  "name": "@typed-react-router/core",
+  "name": "@hyeonqyu/typed-router-core",
   "version": "0.1.0",
-  "description": "Core types and utilities for typed-react-router",
+  "description": "Core types and utilities for typed-router",
   "author": "hyeonQyu <dhk0561@naver.com>",
   "license": "MIT",
-  "private": true,
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/hyeonQyu/typed-router.git"
+  },
+  "homepage": "https://github.com/hyeonQyu/typed-router#readme",
+  "bugs": {
+    "url": "https://github.com/hyeonQyu/typed-router/issues"
+  },
+  "keywords": [
+    "react",
+    "routing",
+    "typescript",
+    "type-safe",
+    "information-architecture"
+  ],
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",
   "types": "./dist/index.d.ts",
@@ -13,8 +27,15 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.mjs",
       "require": "./dist/index.js"
-    }
+    },
+    "./package.json": "./package.json"
   },
+  "sideEffects": false,
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
     "build": "tsup",
     "dev": "tsup --watch",
@@ -29,5 +50,11 @@
     "@types/react": "^19.2.5",
     "react": "^19.2.0",
     "typescript": "^5.9.3"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }

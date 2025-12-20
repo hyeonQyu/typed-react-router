@@ -1,1 +1,1 @@
-# typed-react-router
+# typed-router
