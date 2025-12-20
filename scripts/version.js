@@ -37,7 +37,6 @@ if (args.length === 0) {
 
 const newVersion = args[0];
 
-// 버전 형식 검증
 if (!/^\d+\.\d+\.\d+(-[\w.]+)?$/.test(newVersion)) {
   console.error(`❌ Error: Invalid version format: ${newVersion}`);
   console.log('Expected format: X.Y.Z or X.Y.Z-tag');

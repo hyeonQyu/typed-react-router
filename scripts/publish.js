@@ -31,13 +31,54 @@ const writePackageJson = (packagePath, data) => {
 const replaceWorkspaceWithVersion = (dependencies, version) => {
   if (!dependencies) return dependencies;
   
-  const updated = { ...dependencies };
-  for (const [key, value] of Object.entries(updated)) {
-    if (value === 'workspace:*') {
-      updated[key] = `^${version}`;
+  return Object.entries(dependencies).reduce((acc, [key, value]) => {
+    acc[key] = value === 'workspace:*' ? `^${version}` : value;
+    return acc;
+  }, {});
+}
+
+const preparePackagesForPublish = (version, originalPackages) => {
+  console.log('\n🔄 Preparing packages for publish...');
+
+  PACKAGE_NAMES.forEach((packageName) => {
+    const { path: packagePath, data } = readPackageJson(packageName);
+    
+    originalPackages.push({ path: packagePath, data: { ...data } });
+
+    data.version = version;
+
+    if (data.dependencies) {
+      data.dependencies = replaceWorkspaceWithVersion(data.dependencies, version);
     }
-  }
-  return updated;
+
+    writePackageJson(packagePath, data);
+    console.log(`  ✓ Updated ${packageName}`);
+  });
+}
+
+const buildPackages = () => {
+  console.log('\n🔨 Building packages...');
+  execSync('yarn build', { cwd: ROOT_DIR, stdio: 'inherit' });
+}
+
+const publishPackages = () => {
+  console.log('\n🚀 Publishing packages...');
+  PACKAGE_NAMES.forEach((packageName) => {
+    const packageDir = path.join(PACKAGES_DIR, packageName);
+    console.log(`  Publishing @hyeonqyu/typed-router-${packageName}...`);
+    execSync('yarn npm publish --access public', {
+      cwd: packageDir,
+      stdio: 'inherit',
+    });
+  });
+}
+
+const restoreOriginalPackages = (originalPackages) => {
+  console.log('\n🔄 Restoring original package.json files...');
+  originalPackages.forEach(({ path: packagePath, data }) => {
+    writePackageJson(packagePath, data);
+  });
+  console.log('  ✓ Restored all package.json files');
 }
 
 const main = async () => {
@@ -47,52 +88,15 @@ const main = async () => {
   const originalPackages = [];
 
   try {
-    // 1. 모든 패키지의 버전 업데이트 및 workspace:* 제거
-    console.log('\n🔄 Preparing packages for publish...');
-    for (const packageName of PACKAGE_NAMES) {
-      const { path: packagePath, data } = readPackageJson(packageName);
-      
-      // 원본 저장
-      originalPackages.push({ path: packagePath, data: { ...data } });
-
-      // 버전 업데이트
-      data.version = version;
-
-      // dependencies의 workspace:* 를 실제 버전으로 변경
-      if (data.dependencies) {
-        data.dependencies = replaceWorkspaceWithVersion(data.dependencies, version);
-      }
-
-      writePackageJson(packagePath, data);
-      console.log(`  ✓ Updated ${packageName}`);
-    }
-
-    // 2. 빌드
-    console.log('\n🔨 Building packages...');
-    execSync('yarn build', { cwd: ROOT_DIR, stdio: 'inherit' });
-
-    // 3. 배포
-    console.log('\n🚀 Publishing packages...');
-    for (const packageName of PACKAGE_NAMES) {
-      const packageDir = path.join(PACKAGES_DIR, packageName);
-      console.log(`  Publishing @hyeonqyu/typed-router-${packageName}...`);
-      execSync('yarn npm publish --access public', {
-        cwd: packageDir,
-        stdio: 'inherit',
-      });
-    }
-
+    preparePackagesForPublish(version, originalPackages);
+    buildPackages();
+    publishPackages();
     console.log('\n✅ All packages published successfully!');
   } catch (error) {
     console.error('\n❌ Error during publish:', error.message);
     process.exit(1);
   } finally {
-    // 4. 원본 복구
-    console.log('\n🔄 Restoring original package.json files...');
-    for (const { path: packagePath, data } of originalPackages) {
-      writePackageJson(packagePath, data);
-    }
-    console.log('  ✓ Restored all package.json files');
+    restoreOriginalPackages(originalPackages);
   }
 }
 
