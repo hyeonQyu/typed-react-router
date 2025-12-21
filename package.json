@@ -1,6 +1,6 @@
 {
   "name": "typed-router",
-  "version": "0.1.1",
+  "version": "0.2.1",
   "author": "hyeonQyu <dhk0561@naver.com>",
   "license": "MIT",
   "packageManager": "yarn@4.11.0",
@@ -22,6 +22,7 @@
     "type": "turbo run type",
     "version": "node scripts/version.js",
     "publish": "node scripts/publish.js",
+    "core": "yarn workspace @hyeonqyu/typed-router-core",
     "react": "yarn workspace @hyeonqyu/typed-router-react",
     "next": "yarn workspace @hyeonqyu/typed-router-next"
   },

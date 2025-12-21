@@ -4,7 +4,7 @@ import { forwardRef } from 'react';
 
 type NextLinkProps = ComponentProps<typeof Link>;
 
-export type SafeLinkProps<TPathname extends string = string> = Omit<NextLinkProps, 'href'> & {
+export type TypedLinkProps<TPathname extends string = string> = Omit<NextLinkProps, 'href'> & {
   href:
     | TPathname
     | {
@@ -14,12 +14,12 @@ export type SafeLinkProps<TPathname extends string = string> = Omit<NextLinkProp
       };
 };
 
-export const createSafeLink = <TPathname extends string = string>() => {
-  const SafeLink = forwardRef<ComponentRef<typeof Link>, SafeLinkProps<TPathname>>((props, ref) => {
+export const createTypedLink = <TPathname extends string = string>() => {
+  const TypedLink = forwardRef<ComponentRef<typeof Link>, TypedLinkProps<TPathname>>((props, ref) => {
     return <Link ref={ref} {...(props as NextLinkProps)} />;
   });
 
-  SafeLink.displayName = 'SafeLink';
+  TypedLink.displayName = 'TypedLink';
 
-  return SafeLink;
+  return TypedLink;
 };
