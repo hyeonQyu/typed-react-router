@@ -1,6 +1,6 @@
 {
   "name": "@hyeonqyu/typed-router-react",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Type-safe IA-first routing for React Router",
   "author": "hyeonQyu <dhk0561@naver.com>",
   "license": "MIT",

@@ -9,11 +9,9 @@ const PACKAGES_DIR = path.join(ROOT_DIR, 'packages');
 const PACKAGE_NAMES = ['core', 'next', 'react'];
 
 const getRootVersion = () => {
-  const rootPackageJson = JSON.parse(
-    fs.readFileSync(path.join(ROOT_DIR, 'package.json'), 'utf-8')
-  );
+  const rootPackageJson = JSON.parse(fs.readFileSync(path.join(ROOT_DIR, 'package.json'), 'utf-8'));
   return rootPackageJson.version;
-}
+};
 
 const readPackageJson = (packageName) => {
   const packagePath = path.join(PACKAGES_DIR, packageName, 'package.json');
@@ -21,28 +19,27 @@ const readPackageJson = (packageName) => {
     path: packagePath,
     data: JSON.parse(fs.readFileSync(packagePath, 'utf-8')),
   };
-}
+};
 
 const writePackageJson = (packagePath, data) => {
   fs.writeFileSync(packagePath, JSON.stringify(data, null, 2) + '\n', 'utf-8');
-}
-
+};
 
 const replaceWorkspaceWithVersion = (dependencies, version) => {
   if (!dependencies) return dependencies;
-  
+
   return Object.entries(dependencies).reduce((acc, [key, value]) => {
     acc[key] = value === 'workspace:*' ? `^${version}` : value;
     return acc;
   }, {});
-}
+};
 
 const preparePackagesForPublish = (version, originalPackages) => {
   console.log('\n🔄 Preparing packages for publish...');
 
   PACKAGE_NAMES.forEach((packageName) => {
     const { path: packagePath, data } = readPackageJson(packageName);
-    
+
     originalPackages.push({ path: packagePath, data: { ...data } });
 
     data.version = version;
@@ -54,12 +51,25 @@ const preparePackagesForPublish = (version, originalPackages) => {
     writePackageJson(packagePath, data);
     console.log(`  ✓ Updated ${packageName}`);
   });
-}
+};
+
+const checkAuthentication = () => {
+  console.log('\n🔐 Checking npm authentication...');
+  try {
+    execSync('yarn npm whoami', { cwd: ROOT_DIR, stdio: 'pipe' });
+    console.log('  ✓ Already authenticated');
+  } catch {
+    console.log('  ⚠️  Not authenticated. Please login to npm.');
+    console.log('\n🔑 Running npm login...\n');
+    execSync('yarn npm login', { cwd: ROOT_DIR, stdio: 'inherit' });
+    console.log('\n  ✓ Authentication successful');
+  }
+};
 
 const buildPackages = () => {
   console.log('\n🔨 Building packages...');
   execSync('yarn build', { cwd: ROOT_DIR, stdio: 'inherit' });
-}
+};
 
 const publishPackages = () => {
   console.log('\n🚀 Publishing packages...');
@@ -71,7 +81,7 @@ const publishPackages = () => {
       stdio: 'inherit',
     });
   });
-}
+};
 
 const restoreOriginalPackages = (originalPackages) => {
   console.log('\n🔄 Restoring original package.json files...');
@@ -79,7 +89,7 @@ const restoreOriginalPackages = (originalPackages) => {
     writePackageJson(packagePath, data);
   });
   console.log('  ✓ Restored all package.json files');
-}
+};
 
 const main = async () => {
   const version = getRootVersion();
@@ -88,6 +98,7 @@ const main = async () => {
   const originalPackages = [];
 
   try {
+    checkAuthentication();
     preparePackagesForPublish(version, originalPackages);
     buildPackages();
     publishPackages();
@@ -98,10 +109,9 @@ const main = async () => {
   } finally {
     restoreOriginalPackages(originalPackages);
   }
-}
+};
 
 main().catch((error) => {
   console.error('Fatal error:', error);
   process.exit(1);
 });
-

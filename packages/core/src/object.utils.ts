@@ -20,3 +20,38 @@ export const getSafely = <TObject, TSplitter extends string, TPath extends strin
 
   return value as PathValue<TObject, TPath, TSplitter>;
 };
+
+export type QueryValue = string | number | boolean | readonly (string | number | boolean)[];
+export type QueryParams = Record<string, QueryValue>;
+export type ToQueryStringOptions = {
+  includeQuestionMark?: boolean;
+};
+
+export const toQueryString = (query: QueryParams, options: ToQueryStringOptions = { includeQuestionMark: true }): string => {
+  const params: string[] = [];
+
+  Object.entries(query).forEach(([key, value]) => {
+    if (value === undefined || value === null) {
+      return;
+    }
+
+    const encodedKey = encodeURIComponent(key);
+
+    if (Array.isArray(value)) {
+      value.forEach((item) => {
+        if (item !== undefined && item !== null) {
+          params.push(`${encodedKey}=${encodeURIComponent(String(item))}`);
+        }
+      });
+    } else {
+      params.push(`${encodedKey}=${encodeURIComponent(String(value))}`);
+    }
+  });
+
+  if (params.length === 0) {
+    return '';
+  }
+
+  const queryString = params.join('&');
+  return options.includeQuestionMark ? `?${queryString}` : queryString;
+};

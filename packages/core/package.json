@@ -1,6 +1,6 @@
 {
   "name": "@hyeonqyu/typed-router-core",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Core types and utilities for typed-router",
   "author": "hyeonQyu <dhk0561@naver.com>",
   "license": "MIT",

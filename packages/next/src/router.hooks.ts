@@ -1,6 +1,18 @@
 import { useRouter } from 'next/navigation';
+import { QueryParams, toQueryString } from 'packages/core/src/object.utils';
+
+type NavigateOptions = {
+  scroll?: boolean;
+  query?: QueryParams;
+};
+
+type PrefetchOptions = Pick<NavigateOptions, 'query'>;
 
 export const createTypedRouter = <TPathname extends string = string>() => {
+  const getHrefWithQuery = (href: TPathname, query?: QueryParams) => {
+    return href + toQueryString(query || {}, { includeQuestionMark: true });
+  };
+
   return () => {
     const router = useRouter();
 
@@ -8,14 +20,14 @@ export const createTypedRouter = <TPathname extends string = string>() => {
       back: router.back,
       forward: router.forward,
       refresh: router.refresh,
-      push: (href: TPathname, options?: { scroll?: boolean }) => {
-        return router.push(href, options);
+      push: (href: TPathname, options?: NavigateOptions) => {
+        return router.push(getHrefWithQuery(href, options?.query), options);
       },
-      replace: (href: TPathname, options?: { scroll?: boolean }) => {
-        return router.replace(href, options);
+      replace: (href: TPathname, options?: NavigateOptions) => {
+        return router.replace(getHrefWithQuery(href, options?.query), options);
       },
-      prefetch: (href: TPathname) => {
-        return router.prefetch(href);
+      prefetch: (href: TPathname, options?: PrefetchOptions) => {
+        return router.prefetch(getHrefWithQuery(href, options?.query));
       },
     };
   };
