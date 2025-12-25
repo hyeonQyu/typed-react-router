@@ -1,4 +1,5 @@
 import { Paths, PathValue } from './path.types';
+import { QueryParams } from './query.types';
 
 export const getSafely = <TObject, TSplitter extends string, TPath extends string & Paths<TObject, TSplitter>>(
   splitter: TSplitter,
@@ -21,13 +22,11 @@ export const getSafely = <TObject, TSplitter extends string, TPath extends strin
   return value as PathValue<TObject, TPath, TSplitter>;
 };
 
-export type QueryValue = string | number | boolean | readonly (string | number | boolean)[];
-export type QueryParams = Record<string, QueryValue>;
-export type ToQueryStringOptions = {
+export type QueryStringOptions = {
   includeQuestionMark?: boolean;
 };
 
-export const toQueryString = (query: QueryParams, options: ToQueryStringOptions = { includeQuestionMark: true }): string => {
+export const toQueryString = (query: QueryParams, options: QueryStringOptions = { includeQuestionMark: true }): string => {
   const params: string[] = [];
 
   Object.entries(query).forEach(([key, value]) => {

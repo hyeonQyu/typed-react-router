@@ -1,5 +1,5 @@
+import { QueryParams, toQueryString } from '@hyeonqyu/typed-router-core';
 import { useRouter } from 'next/navigation';
-import { QueryParams, toQueryString } from 'packages/core/src/object.utils';
 
 type NavigateOptions = {
   scroll?: boolean;
@@ -10,7 +10,7 @@ type PrefetchOptions = Pick<NavigateOptions, 'query'>;
 
 export const createTypedRouter = <TPathname extends string = string>() => {
   const getHrefWithQuery = (href: TPathname, query?: QueryParams) => {
-    return href + toQueryString(query || {}, { includeQuestionMark: true });
+    return `${href}${toQueryString(query ?? {}, { includeQuestionMark: true })}`;
   };
 
   return () => {

@@ -1,6 +1,6 @@
 {
   "name": "typed-router",
-  "version": "0.2.2",
+  "version": "0.2.10",
   "author": "hyeonQyu <dhk0561@naver.com>",
   "license": "MIT",
   "packageManager": "yarn@4.11.0",

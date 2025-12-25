@@ -1,14 +1,24 @@
-import { defineConfig } from "tsup";
+import { defineConfig } from 'tsup';
 
 export default defineConfig({
-  entry: ["src/index.ts"],
-  format: ["cjs", "esm"],
-  dts: true,
+  entry: {
+    index: 'src/index.ts',
+    'routes.utils': 'src/routes.utils.tsx',
+  },
+  format: ['cjs', 'esm'],
+  dts: {
+    resolve: true,
+    compilerOptions: {
+      composite: false,
+      incremental: false,
+    },
+  },
   splitting: false,
   sourcemap: true,
   clean: true,
-  external: ["react"],
+  external: ['react'],
   treeshake: true,
   minify: false,
+  bundle: true,
+  keepNames: true,
 });
-

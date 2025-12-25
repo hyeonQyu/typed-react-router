@@ -52,3 +52,11 @@ export type RoutePathname<TMetadata extends BaseMetadata, TContext, TRouteTree e
   '/',
   ''
 >;
+
+export type SimplifyPathname<T> = T extends string ? T : never;
+
+export type ResolvedRouteTree<
+  TMetadata extends BaseMetadata,
+  TContext,
+  TRouteTree extends PartialRouteTree<TMetadata, TContext>,
+> = TRouteTree & RouteTree<TMetadata, TContext, TRouteTree>;
