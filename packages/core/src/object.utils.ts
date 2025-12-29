@@ -1,5 +1,5 @@
 import { Paths, PathValue } from './path.types';
-import { QueryParams } from './query.types';
+import { SearchParams } from './query.types';
 
 export const getSafely = <TObject, TSplitter extends string, TPath extends string & Paths<TObject, TSplitter>>(
   splitter: TSplitter,
@@ -22,14 +22,17 @@ export const getSafely = <TObject, TSplitter extends string, TPath extends strin
   return value as PathValue<TObject, TPath, TSplitter>;
 };
 
-export type QueryStringOptions = {
+export type SearchParamsStringOptions = {
   includeQuestionMark?: boolean;
 };
 
-export const toQueryString = (query: QueryParams, options: QueryStringOptions = { includeQuestionMark: true }): string => {
+export const toSearchParamsString = (
+  searchParams: SearchParams,
+  options: SearchParamsStringOptions = { includeQuestionMark: true },
+): string => {
   const params: string[] = [];
 
-  Object.entries(query).forEach(([key, value]) => {
+  Object.entries(searchParams).forEach(([key, value]) => {
     if (value === undefined || value === null) {
       return;
     }
@@ -51,6 +54,6 @@ export const toQueryString = (query: QueryParams, options: QueryStringOptions = 
     return '';
   }
 
-  const queryString = params.join('&');
-  return options.includeQuestionMark ? `?${queryString}` : queryString;
+  const searchParamsString = params.join('&');
+  return options.includeQuestionMark ? `?${searchParamsString}` : searchParamsString;
 };

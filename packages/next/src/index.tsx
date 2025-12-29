@@ -2,6 +2,7 @@ import type { BaseMetadata, PartialRouteTree, PathValue, ResolvedRouteTree, Rout
 import { createAppRoutes as createAppRoutesCore } from '@hyeonqyu/typed-router-core/routes.utils';
 import { createTypedPathname } from './pathname.hooks';
 import { createTypedRouter } from './router.hooks';
+import { createTypedSearchParams } from './searchParams.hooks';
 import { createTypedLink } from './TypedLink';
 
 export const createAppRoutes = <TMetadata extends BaseMetadata, TContext>() => {
@@ -11,9 +12,10 @@ export const createAppRoutes = <TMetadata extends BaseMetadata, TContext>() => {
     type Pathname = RoutePathname<TMetadata, TContext, TRouteTree>;
     type Routes = ResolvedRouteTree<TMetadata, TContext, TRouteTree>;
 
-    const TypedLink = createTypedLink<Pathname>();
-    const useTypedRouter = createTypedRouter<Pathname>();
+    const TypedLink = createTypedLink<Pathname, TRouteTree>();
+    const useTypedRouter = createTypedRouter<Pathname, TRouteTree>();
     const useTypedPathname = createTypedPathname<Pathname>();
+    const useTypedSearchParams = createTypedSearchParams<TRouteTree>();
 
     return {
       AppRoutesProvider,
@@ -22,6 +24,7 @@ export const createAppRoutes = <TMetadata extends BaseMetadata, TContext>() => {
       TypedLink,
       useTypedRouter,
       useTypedPathname,
+      useTypedSearchParams,
       _types: {
         ..._types,
         AppRoutesPathname: {} as Pathname,

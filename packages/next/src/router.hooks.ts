@@ -1,16 +1,16 @@
-import { QueryParams, toQueryString } from '@hyeonqyu/typed-router-core';
+import { SearchParams, SearchParamsForPath, toSearchParamsString } from '@hyeonqyu/typed-router-core';
 import { useRouter } from 'next/navigation';
 
-type NavigateOptions = {
+type NavigateOptions<TSearchParams = SearchParams> = {
   scroll?: boolean;
-  query?: QueryParams;
+  searchParams?: TSearchParams;
 };
 
-type PrefetchOptions = Pick<NavigateOptions, 'query'>;
+type PrefetchOptions<TSearchParams = SearchParams> = Pick<NavigateOptions<TSearchParams>, 'searchParams'>;
 
-export const createTypedRouter = <TPathname extends string = string>() => {
-  const getHrefWithQuery = (href: TPathname, query?: QueryParams) => {
-    return `${href}${toQueryString(query ?? {}, { includeQuestionMark: true })}`;
+export const createTypedRouter = <TPathname extends string = string, TRouteTree = unknown>() => {
+  const getHrefWithSearchParams = (href: TPathname, searchParams?: SearchParams) => {
+    return `${href}${toSearchParamsString(searchParams ?? {}, { includeQuestionMark: true })}`;
   };
 
   return () => {
@@ -20,14 +20,14 @@ export const createTypedRouter = <TPathname extends string = string>() => {
       back: router.back,
       forward: router.forward,
       refresh: router.refresh,
-      push: (href: TPathname, options?: NavigateOptions) => {
-        return router.push(getHrefWithQuery(href, options?.query), options);
+      push: <TPath extends TPathname>(href: TPath, options?: NavigateOptions<SearchParamsForPath<TRouteTree, TPath>>) => {
+        return router.push(getHrefWithSearchParams(href, options?.searchParams as SearchParams), options);
       },
-      replace: (href: TPathname, options?: NavigateOptions) => {
-        return router.replace(getHrefWithQuery(href, options?.query), options);
+      replace: <TPath extends TPathname>(href: TPath, options?: NavigateOptions<SearchParamsForPath<TRouteTree, TPath>>) => {
+        return router.replace(getHrefWithSearchParams(href, options?.searchParams as SearchParams), options);
       },
-      prefetch: (href: TPathname, options?: PrefetchOptions) => {
-        return router.prefetch(getHrefWithQuery(href, options?.query));
+      prefetch: <TPath extends TPathname>(href: TPath, options?: PrefetchOptions<SearchParamsForPath<TRouteTree, TPath>>) => {
+        return router.prefetch(getHrefWithSearchParams(href, options?.searchParams as SearchParams));
       },
     };
   };

@@ -1,6 +1,6 @@
 {
   "name": "typed-router",
-  "version": "0.2.10",
+  "version": "1.0.2",
   "author": "hyeonQyu <dhk0561@naver.com>",
   "license": "MIT",
   "packageManager": "yarn@4.11.0",
@@ -20,7 +20,7 @@
     "format": "prettier --write \"packages/**/src/**/*.{ts,tsx,json,md}\"",
     "format:check": "prettier --check \"packages/**/src/**/*.{ts,tsx,json,md}\"",
     "type": "turbo run type",
-    "version": "node scripts/version.js",
+    "bump": "node scripts/version.js",
     "publish": "node scripts/publish.js",
     "core": "yarn workspace @hyeonqyu/typed-router-core",
     "react": "yarn workspace @hyeonqyu/typed-router-react",

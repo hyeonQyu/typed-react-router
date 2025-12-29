@@ -34,7 +34,7 @@ const replaceWorkspaceWithVersion = (dependencies, version) => {
   }, {});
 };
 
-const preparePackagesForPublish = (version, originalPackages) => {
+const preparePackagesForPublish = (originalPackages) => {
   console.log('\n🔄 Preparing packages for publish...');
 
   PACKAGE_NAMES.forEach((packageName) => {
@@ -42,14 +42,12 @@ const preparePackagesForPublish = (version, originalPackages) => {
 
     originalPackages.push({ path: packagePath, data: { ...data } });
 
-    data.version = version;
-
     if (data.dependencies) {
+      const version = data.version;
       data.dependencies = replaceWorkspaceWithVersion(data.dependencies, version);
+      writePackageJson(packagePath, data);
+      console.log(`  ✓ Replaced workspace dependencies in ${packageName}`);
     }
-
-    writePackageJson(packagePath, data);
-    console.log(`  ✓ Updated ${packageName}`);
   });
 };
 
@@ -99,7 +97,7 @@ const main = async () => {
 
   try {
     checkAuthentication();
-    preparePackagesForPublish(version, originalPackages);
+    preparePackagesForPublish(originalPackages);
     buildPackages();
     publishPackages();
     console.log('\n✅ All packages published successfully!');

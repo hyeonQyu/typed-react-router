@@ -1,21 +1,24 @@
+import type { SearchParamsForPath } from '@hyeonqyu/typed-router-core';
 import Link from 'next/link';
 import type { ComponentProps, ComponentRef } from 'react';
 import { forwardRef } from 'react';
 
 type NextLinkProps = ComponentProps<typeof Link>;
 
-export type TypedLinkProps<TPathname extends string = string> = Omit<NextLinkProps, 'href'> & {
+export type TypedLinkProps<TPathname extends string = string, TRouteTree = unknown> = Omit<NextLinkProps, 'href'> & {
   href:
     | TPathname
-    | {
-        pathname: TPathname;
-        query?: Record<string, string | number | boolean | readonly (string | number | boolean)[]>;
-        hash?: string;
-      };
+    | (TPathname extends infer TPath
+        ? {
+            pathname: TPath;
+            searchParams?: SearchParamsForPath<TRouteTree, TPath & string>;
+            hash?: string;
+          }
+        : never);
 };
 
-export const createTypedLink = <TPathname extends string = string>() => {
-  const TypedLink = forwardRef<ComponentRef<typeof Link>, TypedLinkProps<TPathname>>((props, ref) => {
+export const createTypedLink = <TPathname extends string = string, TRouteTree = unknown>() => {
+  const TypedLink = forwardRef<ComponentRef<typeof Link>, TypedLinkProps<TPathname, TRouteTree>>((props, ref) => {
     return <Link ref={ref} {...(props as NextLinkProps)} />;
   });
 

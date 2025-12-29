@@ -43,9 +43,9 @@ const args = process.argv.slice(2);
 if (args.length === 0) {
   console.error('❌ Error: Version argument required');
   console.log('\nUsage:');
-  console.log('  yarn version <version>');
+  console.log('  yarn bump <version>');
   console.log('\nExample:');
-  console.log('  yarn version 0.3.0');
+  console.log('  yarn bump 1.0.2');
   process.exit(1);
 }
 
