@@ -11,8 +11,8 @@ type ParseOptions = {
   onError?: 'throw' | 'default' | 'raw';
 };
 
-export const createTypedSearchParams = <TRouteTree = unknown>() => {
-  return <TPathname extends string = string>(_pathname: TPathname, _options?: ParseOptions) => {
+export const createTypedSearchParams = <TRouteTree = unknown, TPathname extends string = string>() => {
+  return (_pathname: TPathname, _options?: ParseOptions) => {
     const searchParams = useSearchParams();
 
     type ExpectedParams = SearchParamsForPath<TRouteTree, TPathname>;
