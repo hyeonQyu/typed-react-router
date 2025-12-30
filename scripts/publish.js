@@ -3,6 +3,7 @@
 const fs = require('fs');
 const path = require('path');
 const { execSync } = require('child_process');
+const readline = require('readline');
 
 const ROOT_DIR = path.join(__dirname, '..');
 const PACKAGES_DIR = path.join(ROOT_DIR, 'packages');
@@ -69,12 +70,26 @@ const buildPackages = () => {
   execSync('yarn build', { cwd: ROOT_DIR, stdio: 'inherit' });
 };
 
-const publishPackages = () => {
+const promptOTP = () => {
+  return new Promise((resolve) => {
+    const rl = readline.createInterface({
+      input: process.stdin,
+      output: process.stdout,
+    });
+
+    rl.question('\n🔑 Enter OTP (one-time password): ', (otp) => {
+      rl.close();
+      resolve(otp.trim());
+    });
+  });
+};
+
+const publishPackages = (otp) => {
   console.log('\n🚀 Publishing packages...');
   PACKAGE_NAMES.forEach((packageName) => {
     const packageDir = path.join(PACKAGES_DIR, packageName);
     console.log(`  Publishing @hyeonqyu/typed-router-${packageName}...`);
-    execSync('yarn npm publish --access public', {
+    execSync(`yarn npm publish --access public --otp ${otp}`, {
       cwd: packageDir,
       stdio: 'inherit',
     });
@@ -99,7 +114,8 @@ const main = async () => {
     checkAuthentication();
     preparePackagesForPublish(originalPackages);
     buildPackages();
-    publishPackages();
+    const otp = await promptOTP();
+    publishPackages(otp);
     console.log('\n✅ All packages published successfully!');
   } catch (error) {
     console.error('\n❌ Error during publish:', error.message);
