@@ -15,7 +15,7 @@ export const createAppRoutes = <TMetadata extends BaseMetadata, TContext>() => {
     const TypedLink = createTypedLink<Pathname, TRouteTree>();
     const useTypedRouter = createTypedRouter<Pathname, TRouteTree>();
     const useTypedPathname = createTypedPathname<Pathname>();
-    const useTypedSearchParams = createTypedSearchParams<TRouteTree, Pathname>();
+    const useTypedSearchParams = createTypedSearchParams<Pathname, TRouteTree>();
 
     return {
       AppRoutesProvider,

@@ -11,11 +11,11 @@ type ParseOptions = {
   onError?: 'throw' | 'default' | 'raw';
 };
 
-export const createTypedSearchParams = <TRouteTree = unknown, TPathname extends string = string>() => {
-  return (_pathname: TPathname, _options?: ParseOptions) => {
+export const createTypedSearchParams = <TPathname extends string = string, TRouteTree = unknown>() => {
+  return <T extends TPathname>(_pathname: T, _options?: ParseOptions) => {
     const searchParams = useSearchParams();
 
-    type ExpectedParams = SearchParamsForPath<TRouteTree, TPathname>;
+    type ExpectedParams = SearchParamsForPath<TRouteTree, T>;
 
     // Convert URLSearchParams to plain object
     const rawParams: Record<string, unknown> = {};
