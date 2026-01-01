@@ -25,6 +25,7 @@ export const createAppRoutes = <TMetadata extends BaseMetadata, TContext>() => {
       useTypedRouter,
       useTypedPathname,
       useTypedSearchParams,
+      appRoutes,
       _types: {
         ..._types,
         AppRoutesPathname: {} as Pathname,
