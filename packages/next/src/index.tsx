@@ -1,4 +1,12 @@
-import type { BaseMetadata, PartialRouteTree, PathValue, ResolvedRouteTree, RoutePathname, RouteTree } from '@hyeonqyu/typed-router-core';
+import {
+  getSafely,
+  type BaseMetadata,
+  type PartialRouteTree,
+  type PathValue,
+  type ResolvedRouteTree,
+  type RoutePathname,
+  type RouteTree,
+} from '@hyeonqyu/typed-router-core';
 import { createAppRoutes as createAppRoutesCore } from '@hyeonqyu/typed-router-core/routes.utils';
 import { createTypedPathname } from './pathname.hooks';
 import { createTypedRouter } from './router.hooks';
@@ -17,6 +25,10 @@ export const createAppRoutes = <TMetadata extends BaseMetadata, TContext>() => {
     const useTypedPathname = createTypedPathname<Pathname>();
     const useTypedSearchParams = createTypedSearchParams<Pathname, TRouteTree>();
 
+    const getCurrentRouteNode = (pathname: Pathname) => {
+      return getSafely('/', appRoutes, pathname) as PathValue<TRouteTree, Pathname, '/'>;
+    };
+
     return {
       AppRoutesProvider,
       useAppRoutes: useAppRoutes as () => Routes,
@@ -25,6 +37,7 @@ export const createAppRoutes = <TMetadata extends BaseMetadata, TContext>() => {
       useTypedRouter,
       useTypedPathname,
       useTypedSearchParams,
+      getCurrentRouteNode,
       appRoutes,
       _types: {
         ..._types,

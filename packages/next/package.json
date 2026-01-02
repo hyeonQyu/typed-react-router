@@ -1,6 +1,6 @@
 {
   "name": "@hyeonqyu/typed-router-next",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Type-safe IA-first routing for Next.js",
   "author": "hyeonQyu <dhk0561@naver.com>",
   "license": "MIT",
