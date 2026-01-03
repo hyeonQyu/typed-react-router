@@ -8,7 +8,7 @@ export const getSafely = <TObject, TSplitter extends string, TPath extends strin
 ): PathValue<TObject, TPath, TSplitter> => {
   if (path === '' || path === splitter) return obj as PathValue<TObject, TPath, TSplitter>;
 
-  const keys = (path as string).split(splitter);
+  const keys = (path as string).split(splitter).filter((key) => key);
   let value: unknown = obj;
 
   for (const key of keys) {
