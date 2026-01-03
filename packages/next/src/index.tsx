@@ -15,7 +15,12 @@ import { createTypedLink } from './TypedLink';
 
 export const createAppRoutes = <TMetadata extends BaseMetadata, TContext>() => {
   return <TRouteTree extends PartialRouteTree<TMetadata, TContext>>(appRoutes: TRouteTree & RouteTree<TMetadata, TContext, TRouteTree>) => {
-    const { AppRoutesProvider, useAppRoutes, useCurrentRouteNode, _types } = createAppRoutesCore<TMetadata, TContext>()(appRoutes);
+    const {
+      AppRoutesProvider,
+      useAppRoutes,
+      useCurrentRouteNode: useCurrentRouteNodeCore,
+      _types,
+    } = createAppRoutesCore<TMetadata, TContext>()(appRoutes);
 
     type Pathname = RoutePathname<TMetadata, TContext, TRouteTree>;
     type Routes = ResolvedRouteTree<TMetadata, TContext, TRouteTree>;
@@ -29,10 +34,15 @@ export const createAppRoutes = <TMetadata extends BaseMetadata, TContext>() => {
       return getSafely('/', appRoutes, pathname) as PathValue<TRouteTree, Pathname, '/'>;
     };
 
+    const useCurrentRouteNode = (): PathValue<TRouteTree, Pathname, '/'> => {
+      const pathname = useTypedPathname();
+      return useCurrentRouteNodeCore(pathname) as PathValue<TRouteTree, Pathname, '/'>;
+    };
+
     return {
       AppRoutesProvider,
       useAppRoutes: useAppRoutes as () => Routes,
-      useCurrentRouteNode: useCurrentRouteNode as <TPath extends Pathname>(pathname: TPath) => PathValue<TRouteTree, TPath, '/'>,
+      useCurrentRouteNode,
       TypedLink,
       useTypedRouter,
       useTypedPathname,
