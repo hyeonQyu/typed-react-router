@@ -11,9 +11,9 @@ export type RouteNode<TMetadata extends BaseMetadata, TContext> = {
 };
 
 export type RouteNodeMetadata<TMetadata extends BaseMetadata, TContext> = {
-  title?: string;
-  label?: string;
-  description?: string;
+  title?: (context: TContext) => string;
+  label?: (context: TContext) => string;
+  description?: (context: TContext) => string;
   href?: (context: TContext) => string;
   accessible?: (context: TContext) => boolean;
   searchParamsSchema?: AnyZodSchema;
