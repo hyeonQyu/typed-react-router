@@ -1,7 +1,6 @@
 import { createContext, ReactNode, useContext } from 'react';
 import { getSafely } from './object.utils';
-import { PathValue } from './path.types';
-import { BaseMetadata, PartialRouteTree, ResolvedRouteTree, RoutePathname, RouteTree } from './routes.types';
+import { BaseMetadata, PartialRouteTree, ResolvedRouteTree, RouteNode, RoutePathname, RouteTree } from './routes.types';
 
 export const createAppRoutes =
   <TMetadata extends BaseMetadata, TContext>() =>
@@ -15,9 +14,9 @@ export const createAppRoutes =
       return useContext(Context);
     };
 
-    const useCurrentRouteNode = <TPath extends Pathname>(pathname: TPath): PathValue<TRouteTree, TPath, '/'> => {
+    const useCurrentRouteNode = <TPath extends Pathname>(pathname: TPath) => {
       const routes = useContext(Context);
-      return getSafely('/', routes, pathname) as PathValue<TRouteTree, TPath, '/'>;
+      return getSafely('/', routes, pathname) as RouteNode<TMetadata, TContext>;
     };
 
     const AppRoutesProvider = ({ children }: { children: ReactNode }) => {
