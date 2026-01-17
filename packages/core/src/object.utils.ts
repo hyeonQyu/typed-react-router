@@ -65,11 +65,6 @@ export const findObjectPath = <T>(
   path = splitter,
 ): string | undefined => {
   for (const key in root) {
-    // Skip _metadata keys during traversal
-    if (key === '_metadata') {
-      continue;
-    }
-
     const current = root[key];
 
     if (current === target) return path + key;

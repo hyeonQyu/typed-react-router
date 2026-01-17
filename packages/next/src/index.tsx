@@ -15,7 +15,7 @@ import { createTypedLink } from './TypedLink';
 
 export const createAppRoutes = <TMetadata extends BaseMetadata, TContext>() => {
   return <TRouteTree extends PartialRouteTree<TMetadata, TContext>>(appRoutes: TRouteTree & RouteTree<TMetadata, TContext, TRouteTree>) => {
-    const { AppRoutesProvider, useAppRoutes, _types } = createAppRoutesCore<TMetadata, TContext>()(appRoutes);
+    const { AppRoutesProvider, useAppRoutes, getPathnameFromNode, _types } = createAppRoutesCore<TMetadata, TContext>()(appRoutes);
 
     type Pathname = RoutePathname<TMetadata, TContext, TRouteTree>;
     type Routes = ResolvedRouteTree<TMetadata, TContext, TRouteTree>;
@@ -43,6 +43,7 @@ export const createAppRoutes = <TMetadata extends BaseMetadata, TContext>() => {
       useTypedPathname,
       useTypedSearchParams,
       getCurrentRouteNode,
+      getPathnameFromNode,
       appRoutes,
       _types: {
         ..._types,
@@ -54,3 +55,4 @@ export const createAppRoutes = <TMetadata extends BaseMetadata, TContext>() => {
 
 export * from '@hyeonqyu/typed-router-core';
 export type { TypedLinkProps } from './TypedLink';
+

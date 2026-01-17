@@ -51,7 +51,7 @@ export const createAppRoutes =
       };
 
       const getPathnameFromNode = (targetNode: AppRouteNode, params?: SearchParams): string | undefined => {
-        const pathname = findObjectPath(appRoutes, targetNode);
+        const pathname = findObjectPath(frozenAppRoutes, targetNode);
         if (!pathname) return undefined;
         return replaceDynamicSegments(pathname, params);
       };
