@@ -57,3 +57,41 @@ export const toSearchParamsString = (
   const searchParamsString = params.join('&');
   return options.includeQuestionMark ? `?${searchParamsString}` : searchParamsString;
 };
+
+export const findObjectPath = <T>(
+  root: Record<string, unknown>,
+  target: T,
+  splitter = '/',
+  path = splitter,
+): string | undefined => {
+  for (const key in root) {
+    // Skip _metadata keys during traversal
+    if (key === '_metadata') {
+      continue;
+    }
+
+    const current = root[key];
+
+    if (current === target) return path + key;
+
+    if (typeof current === 'object' && current !== null) {
+      const result = findObjectPath(current as Record<string, unknown>, target, splitter, path + key + splitter);
+      if (result) return result;
+    }
+  }
+
+  return undefined;
+};
+
+export const replaceDynamicSegments = (
+  pathname: string,
+  params?: SearchParams,
+): string => {
+  if (!params) return pathname;
+
+  return pathname.replace(/\[([^\]]+)\]/g, (_, key) => {
+    const value = params[key.toString()];
+    if (value === undefined || value === null) return `[${key}]`;
+    return Array.isArray(value) ? value.join(',') : value.toString();
+  });
+};

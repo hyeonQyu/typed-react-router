@@ -1,5 +1,6 @@
 import { createContext, ReactNode, useContext } from 'react';
-import { getSafely } from './object.utils';
+import { findObjectPath, getSafely, replaceDynamicSegments } from './object.utils';
+import { SearchParams } from './query.types';
 import { BaseMetadata, PartialRouteTree, ResolvedRouteTree, RouteNode, RoutePathname, RouteTree } from './routes.types';
 
 export const createAppRoutes =
@@ -7,6 +8,7 @@ export const createAppRoutes =
   <TRouteTree extends PartialRouteTree<TMetadata, TContext>>(appRoutes: TRouteTree & RouteTree<TMetadata, TContext, TRouteTree>) => {
     type Routes = ResolvedRouteTree<TMetadata, TContext, TRouteTree>;
     type Pathname = RoutePathname<TMetadata, TContext, TRouteTree>;
+    type AppRouteNode = RouteNode<TMetadata, TContext>;
 
     const Context = createContext<Routes>(appRoutes as Routes);
 
@@ -23,14 +25,25 @@ export const createAppRoutes =
       return <Context.Provider value={appRoutes as Routes}>{children}</Context.Provider>;
     };
 
+    const getPathnameFromNode = (
+      targetNode: AppRouteNode,
+      params?: SearchParams,
+    ): string | undefined => {
+      const pathname = findObjectPath(appRoutes, targetNode);
+      if (!pathname) return undefined;
+      return replaceDynamicSegments(pathname, params);
+    };
+
     return {
       AppRoutesProvider,
       useAppRoutes,
       useCurrentRouteNode,
+      getPathnameFromNode,
       _types: {} as {
         AppRoutesMetadata: TMetadata;
         AppRoutesContext: TContext;
         AppRoutesPathname: Pathname;
+        AppRouteNode: AppRouteNode;
       },
     };
   };
