@@ -1,4 +1,4 @@
-import { SearchParams, SearchParamsForPath, toSearchParamsString } from '@hyeonqyu/typed-router-core';
+import { replaceDynamicSegments, SearchParams, SearchParamsForPath, toSearchParamsString } from '@hyeonqyu/typed-router-core';
 import { useRouter } from 'next/navigation';
 
 type NavigateOptions<TSearchParams = SearchParams> = {
@@ -10,7 +10,8 @@ type PrefetchOptions<TSearchParams = SearchParams> = Pick<NavigateOptions<TSearc
 
 export const createTypedRouter = <TPathname extends string = string, TRouteTree = unknown>() => {
   const getHrefWithSearchParams = (href: TPathname, searchParams?: SearchParams) => {
-    return `${href}${toSearchParamsString(searchParams ?? {}, { includeQuestionMark: true })}`;
+    const { pathname, remainingParams } = replaceDynamicSegments(href as string, searchParams);
+    return `${pathname}${toSearchParamsString(remainingParams, { includeQuestionMark: true })}`;
   };
 
   return () => {

@@ -78,15 +78,37 @@ export const findObjectPath = <T>(
   return undefined;
 };
 
+export type ReplaceDynamicSegmentsResult = {
+  pathname: string;
+  remainingParams: SearchParams;
+};
+
 export const replaceDynamicSegments = (
   pathname: string,
   params?: SearchParams,
-): string => {
-  if (!params) return pathname;
+): ReplaceDynamicSegmentsResult => {
+  if (!params) {
+    return {
+      pathname,
+      remainingParams: {},
+    };
+  }
 
-  return pathname.replace(/\[([^\]]+)\]/g, (_, key) => {
+  const usedKeys = new Set<string>();
+
+  const replacedPathname = pathname.replace(/\[([^\]]+)\]/g, (_, key) => {
+    usedKeys.add(key);
     const value = params[key.toString()];
     if (value === undefined || value === null) return `[${key}]`;
     return Array.isArray(value) ? value.join(',') : value.toString();
   });
+
+  const remainingParams = Object.fromEntries(
+    Object.entries(params).filter(([key]) => !usedKeys.has(key))
+  ) as SearchParams;
+
+  return {
+    pathname: replacedPathname,
+    remainingParams,
+  };
 };
