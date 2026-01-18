@@ -83,6 +83,13 @@ export type ReplaceDynamicSegmentsResult = {
   remainingParams: SearchParams;
 };
 
+const DYNAMIC_SEGMENT_REGEX = /\[([^\]]+)\]/g;
+
+export const extractDynamicSegmentKeys = (pathname: string): string[] => {
+  const matches = Array.from(pathname.matchAll(DYNAMIC_SEGMENT_REGEX));
+  return matches.map((match) => match[1]);
+};
+
 export const replaceDynamicSegments = (
   pathname: string,
   params?: SearchParams,
@@ -96,7 +103,7 @@ export const replaceDynamicSegments = (
 
   const usedKeys = new Set<string>();
 
-  const replacedPathname = pathname.replace(/\[([^\]]+)\]/g, (_, key) => {
+  const replacedPathname = pathname.replace(DYNAMIC_SEGMENT_REGEX, (_, key) => {
     usedKeys.add(key);
     const value = params[key.toString()];
     if (value === undefined || value === null) return `[${key}]`;

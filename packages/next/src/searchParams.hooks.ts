@@ -1,5 +1,5 @@
-import type { SearchParamsForPath } from '@hyeonqyu/typed-router-core';
-import { useSearchParams } from 'next/navigation';
+import { extractDynamicSegmentKeys, type SearchParamsForPath } from '@hyeonqyu/typed-router-core';
+import { useParams, useSearchParams } from 'next/navigation';
 
 type ParseOptions = {
   /**
@@ -12,25 +12,32 @@ type ParseOptions = {
 };
 
 export const createTypedSearchParams = <TPathname extends string = string, TRouteTree = unknown>() => {
-  return <T extends TPathname>(_pathname: T, _options?: ParseOptions) => {
+  return <T extends TPathname>(pathname: T, _options?: ParseOptions) => {
     const searchParams = useSearchParams();
+    const pathParams = useParams();
 
     type ExpectedParams = SearchParamsForPath<TRouteTree, T>;
 
-    // Convert URLSearchParams to plain object
-    const rawParams: Record<string, unknown> = {};
+    const queryParams: Record<string, unknown> = {};
     searchParams.forEach((value, key) => {
-      const existing = rawParams[key];
+      const existing = queryParams[key];
       if (existing !== undefined) {
         // Handle multiple values for the same key
-        rawParams[key] = Array.isArray(existing) ? [...existing, value] : [existing, value];
+        queryParams[key] = Array.isArray(existing) ? [...existing, value] : [existing, value];
       } else {
-        rawParams[key] = value;
+        queryParams[key] = value;
       }
     });
 
-    // For now, return raw params as ExpectedParams
-    // When schema is available at runtime, we would parse with Zod here
-    return rawParams as ExpectedParams;
+    const dynamicKeys = extractDynamicSegmentKeys(pathname as string);
+
+    const routeParams: Record<string, unknown> = {};
+    dynamicKeys.forEach((key) => {
+      if (pathParams[key] !== undefined) {
+        routeParams[key] = pathParams[key];
+      }
+    });
+
+    return { ...queryParams, ...routeParams } as ExpectedParams;
   };
 };
