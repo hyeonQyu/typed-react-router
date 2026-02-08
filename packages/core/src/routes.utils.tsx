@@ -1,7 +1,19 @@
 import { createContext, ReactNode, useContext } from 'react';
 import { findObjectPath, getSafely, replaceDynamicSegments } from './object.utils';
 import { SearchParams } from './query.types';
-import { BaseMetadata, PartialRouteTree, ResolvedRouteTree, RouteNode, RoutePathname, RouteTree } from './routes.types';
+import {
+  BaseMetadata,
+  ExtractSearchParams,
+  GetRouteNode,
+  PartialRouteTree,
+  ResolvedRouteTree,
+  RouteNode,
+  RouteNodeMetadata,
+  RoutePathname,
+  RouteTree,
+  SearchParamsForPath,
+  SimplifyPathname,
+} from './routes.types';
 
 export const createAppRoutes =
   <TMetadata extends BaseMetadata, TContext>() =>
@@ -68,6 +80,14 @@ export const createAppRoutes =
           AppRoutesContext: TContext;
           AppRoutesPathname: Pathname;
           AppRouteNode: AppRouteNode;
+          AppRoutes: Routes;
+          AppRouteTree: TRouteTree;
+          AppRouteNodeMetadata: RouteNodeMetadata<TMetadata, TContext>;
+          AppPartialRouteTree: PartialRouteTree<TMetadata, TContext>;
+          GetRouteNode: <TPath extends Pathname>(path: TPath) => GetRouteNode<Routes, TPath>;
+          SearchParamsForPath: <TPath extends Pathname>(path: TPath) => SearchParamsForPath<Routes, TPath>;
+          ExtractSearchParams: <TNode extends RouteNode<TMetadata, TContext>>(node: TNode) => ExtractSearchParams<TNode>;
+          SimplifyPathname: SimplifyPathname<Pathname>;
         },
       };
     };
