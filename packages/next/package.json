@@ -1,6 +1,6 @@
 {
   "name": "@hyeonqyu/typed-router-next",
-  "version": "1.5.5",
+  "version": "1.6.1",
   "description": "Type-safe IA-first routing for Next.js",
   "author": "hyeonQyu <dhk0561@naver.com>",
   "license": "MIT",
@@ -50,7 +50,7 @@
     "react": "^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0"
   },
   "dependencies": {
-    "@hyeonqyu/typed-router-core": "workspace:*"
+    "@hyeonqyu/typed-router-core": "^1.6.0"
   },
   "devDependencies": {
     "@types/react": "^19.2.5",
