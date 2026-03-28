@@ -2,6 +2,7 @@ import { type PartialRouteTree, type ResolvedRouteTree, type RoutePathname, type
 import { createAppRoutes as coreCreateAppRoutes } from '@hyeonqyu/typed-router-core/routes.utils';
 import { ReactNode } from 'react';
 import { createTypedNavigate } from './navigate.hooks';
+import { createTypedLink } from './TypedLink';
 
 export const createAppRoutes = <TMetadata extends { component: ReactNode }, TContext>() => {
   return <TRouteTree extends PartialRouteTree<TMetadata, TContext>>(appRoutes: TRouteTree & RouteTree<TMetadata, TContext, TRouteTree>) => {
@@ -13,11 +14,13 @@ export const createAppRoutes = <TMetadata extends { component: ReactNode }, TCon
     type Pathname = RoutePathname<TMetadata, TContext, TRouteTree>;
     type Routes = ResolvedRouteTree<TMetadata, TContext, TRouteTree>;
 
+    const TypedLink = createTypedLink<Pathname, TRouteTree>();
     const useTypedNavigate = createTypedNavigate<Pathname, TRouteTree>();
 
     return {
       AppRoutesProvider,
       useAppRoutes: useAppRoutes as () => Routes,
+      TypedLink,
       useTypedNavigate,
       getPathnameFromNode,
       freezeAppRoutes,
@@ -32,3 +35,4 @@ export const createAppRoutes = <TMetadata extends { component: ReactNode }, TCon
 };
 
 export * from '@hyeonqyu/typed-router-core';
+export type { TypedLinkProps } from './TypedLink';

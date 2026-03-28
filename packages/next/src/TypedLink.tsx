@@ -1,4 +1,4 @@
-import { replaceDynamicSegments, toSearchParamsString, type SearchParams, type SearchParamsForPath } from '@hyeonqyu/typed-router-core';
+import { buildTypedHref, type TypedLinkHrefObject, type SearchParams } from '@hyeonqyu/typed-router-core';
 import Link from 'next/link';
 import type { ComponentProps, ComponentRef } from 'react';
 import { forwardRef } from 'react';
@@ -6,15 +6,7 @@ import { forwardRef } from 'react';
 type NextLinkProps = ComponentProps<typeof Link>;
 
 export type TypedLinkProps<TPathname extends string = string, TRouteTree = unknown> = Omit<NextLinkProps, 'href'> & {
-  href:
-  | TPathname
-  | (TPathname extends infer TPath
-    ? {
-      pathname: TPath;
-      searchParams?: SearchParamsForPath<TRouteTree, TPath & string>;
-      hash?: string;
-    }
-    : never);
+  href: TPathname | TypedLinkHrefObject<TPathname, TRouteTree>;
 };
 
 export const createTypedLink = <TPathname extends string = string, TRouteTree = unknown>() => {
@@ -26,14 +18,7 @@ export const createTypedLink = <TPathname extends string = string, TRouteTree = 
     }
 
     const { pathname, searchParams, hash } = href;
-
-    const { pathname: replacedPathname, remainingParams } = replaceDynamicSegments(
-      pathname as string,
-      searchParams as SearchParams,
-    );
-
-    const queryString = toSearchParamsString(remainingParams, { includeQuestionMark: true });
-    const finalHref = `${replacedPathname}${queryString}${hash ?? ''}`;
+    const finalHref = buildTypedHref(pathname as string, searchParams as SearchParams, hash);
 
     return <Link ref={ref} href={finalHref} {...restProps} />;
   });
