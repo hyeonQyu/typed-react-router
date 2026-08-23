@@ -33,6 +33,10 @@ export default [
       ...reactHooks.configs.recommended.rules,
       'react/react-in-jsx-scope': 'off',
       'react/prop-types': 'off',
+      // TypeScript already reports unknown identifiers, and `no-undef` cannot see
+      // type-only references such as `HTMLAnchorElement` or lib globals like
+      // `URLSearchParams`. This is typescript-eslint's own recommendation.
+      'no-undef': 'off',
       '@typescript-eslint/no-explicit-any': 'warn',
       '@typescript-eslint/no-unused-vars': [
         'error',
@@ -69,6 +73,8 @@ export default [
   },
   prettier,
   {
-    ignores: ['dist', 'node_modules', '.yarn', '*.config.js'],
+    // Patterns are resolved from this file's directory, so they need `**/` to reach
+    // into the workspaces where lint actually runs.
+    ignores: ['**/dist/**', '**/node_modules/**', '**/.next/**', '**/.yarn/**', '**/*.config.js'],
   },
 ];

@@ -21,3 +21,7 @@ dist
 .vscode
 
 .turbo
+
+# Example app build output
+.next
+*.tsbuildinfo
