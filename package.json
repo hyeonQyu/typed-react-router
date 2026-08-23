@@ -1,12 +1,13 @@
 {
   "name": "typed-router",
-  "version": "1.8.0",
+  "version": "2.0.0",
   "author": "hyeonQyu <dhk0561@naver.com>",
   "license": "MIT",
   "packageManager": "yarn@4.11.0",
   "private": true,
   "workspaces": [
-    "packages/*"
+    "packages/*",
+    "examples/*"
   ],
   "repository": {
     "type": "git",
@@ -24,7 +25,8 @@
     "publish": "node scripts/publish.js",
     "core": "yarn workspace @hyeonqyu/typed-router-core",
     "react": "yarn workspace @hyeonqyu/typed-router-react",
-    "next": "yarn workspace @hyeonqyu/typed-router-next"
+    "next": "yarn workspace @hyeonqyu/typed-router-next",
+    "test": "tsc -p tests/tsconfig.json --noEmit"
   },
   "devDependencies": {
     "@types/node": "^24.10.1",
