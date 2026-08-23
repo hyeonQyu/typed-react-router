@@ -1,9 +1,64 @@
-export * from './object.utils';
-export type * from './path.types';
-export type * from './query.types';
-export * from './routes.types';
-export * from './link.utils';
+export { createRouteTree, resolveMetadata, resolveMetadataValue, type RouteTree } from './createRouteTree';
+export {
+  defineRoutes,
+  type Pathname,
+  type RouteMetadataOf,
+  type RouteNodeOf,
+  type SearchParams,
+  type TypedRoutes,
+} from './defineRoutes';
 
-// Note: createAppRoutes is NOT exported here
-// Framework-specific packages (next, react) should import directly from './routes.utils'
-// This prevents naming conflicts when they define their own createAppRoutes
+export type {
+  GetRouteMetadata,
+  GetRouteNode,
+  MetadataKey,
+  PathParams,
+  PathParamsOutput,
+  PathParamValue,
+  RouteGroupKey,
+  RoutePaths,
+  SegmentKeys,
+  Simplify,
+} from './path.types';
+
+export {
+  buildHref,
+  collectRoutes,
+  isRouteGroup,
+  matchRoute,
+  METADATA_KEY,
+  parseSegment,
+  splitPath,
+  toSearchParamsString,
+  type BuildHrefArgs,
+  type CollectedRoute,
+  type RouteMatch,
+  type RouteParams,
+  type SegmentPattern,
+} from './path.utils';
+
+export type { AnySchema, InferSchemaInput, InferSchemaOutput, ParsableSchema } from './schema.types';
+
+export {
+  collectRawSearchParams,
+  parseSearchParams,
+  SearchParamsParseError,
+  type ParseSearchParamsOptions,
+  type RawSearchParams,
+  type SearchParamsErrorMode,
+} from './searchParams.utils';
+
+export type {
+  BuiltinMetadata,
+  HasRequiredKeys,
+  MetadataValue,
+  RouteArgs,
+  RouteArgsTuple,
+  RouteMetadata,
+  RouteNodeInput,
+  RouteNodeInputWithMeta,
+  RouteTreeInput,
+  RouteTreeInputWithMeta,
+  SearchParamsInput,
+  SearchParamsOutput,
+} from './tree.types';

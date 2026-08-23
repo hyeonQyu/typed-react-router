@@ -1,7 +1,7 @@
 {
   "name": "@hyeonqyu/typed-router-core",
-  "version": "1.8.0",
-  "description": "Core types and utilities for typed-router",
+  "version": "2.0.0",
+  "description": "Framework-agnostic core for typed-router: declare your route tree once, derive pathnames, params and search-param types from it",
   "author": "hyeonQyu <dhk0561@naver.com>",
   "license": "MIT",
   "repository": {
@@ -28,11 +28,6 @@
       "import": "./dist/index.mjs",
       "require": "./dist/index.js"
     },
-    "./routes.utils": {
-      "types": "./dist/routes.utils.d.ts",
-      "import": "./dist/routes.utils.mjs",
-      "require": "./dist/routes.utils.js"
-    },
     "./package.json": "./package.json"
   },
   "sideEffects": false,
@@ -49,8 +44,7 @@
     "type": "tsc --noEmit"
   },
   "peerDependencies": {
-    "react": "^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0",
-    "zod": "^3.0.0"
+    "zod": "^3.24.0 || ^4.0.0"
   },
   "peerDependenciesMeta": {
     "zod": {
@@ -58,8 +52,6 @@
     }
   },
   "devDependencies": {
-    "@types/react": "^19.2.5",
-    "react": "^19.2.0",
     "typescript": "^5.9.3",
     "zod": "^3.24.1"
   },

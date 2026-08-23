@@ -1,0 +1,223 @@
+import type { PathParamValue } from './path.types';
+import type { RouteMetadata, RouteNodeInput } from './tree.types';
+
+export const METADATA_KEY = '_metadata';
+
+export type SegmentPattern =
+  | { kind: 'static'; value: string }
+  | { kind: 'dynamic'; name: string }
+  | { kind: 'catchAll'; name: string }
+  | { kind: 'optionalCatchAll'; name: string };
+
+const OPTIONAL_CATCH_ALL = /^\[\[\.\.\.(.+)\]\]$/;
+const CATCH_ALL = /^\[\.\.\.(.+)\]$/;
+const DYNAMIC = /^\[(.+)\]$/;
+
+/** A key wrapped in parentheses organises the tree without adding a URL segment. */
+export const isRouteGroup = (key: string): boolean => key.startsWith('(') && key.endsWith(')');
+
+export const parseSegment = (segment: string): SegmentPattern => {
+  const optionalCatchAll = OPTIONAL_CATCH_ALL.exec(segment);
+  if (optionalCatchAll) return { kind: 'optionalCatchAll', name: optionalCatchAll[1] };
+
+  const catchAll = CATCH_ALL.exec(segment);
+  if (catchAll) return { kind: 'catchAll', name: catchAll[1] };
+
+  const dynamic = DYNAMIC.exec(segment);
+  if (dynamic) return { kind: 'dynamic', name: dynamic[1] };
+
+  return { kind: 'static', value: segment };
+};
+
+export const splitPath = (path: string): string[] => path.split('/').filter(Boolean);
+
+export type RouteParams = Record<string, PathParamValue | readonly PathParamValue[]>;
+
+export type CollectedRoute = {
+  /** The declared pathname, e.g. `/products/[id]` — route groups removed. */
+  path: string;
+  segments: SegmentPattern[];
+  node: RouteNodeInput;
+  metadata: RouteMetadata | undefined;
+};
+
+/**
+ * Walks the tree and lists every navigable route (a node declaring `_metadata`),
+ * skipping route-group keys so `(auth)/login` is reachable at `/login`.
+ */
+export const collectRoutes = (tree: unknown, basePath = ''): CollectedRoute[] => {
+  const routes: CollectedRoute[] = [];
+
+  const walk = (node: unknown, currentPath: string) => {
+    if (typeof node !== 'object' || node === null) return;
+
+    for (const [key, child] of Object.entries(node)) {
+      if (key === METADATA_KEY) continue;
+      if (typeof child !== 'object' || child === null) continue;
+
+      const childPath = isRouteGroup(key) ? currentPath : `${currentPath}/${key}`;
+      const childNode = child as RouteNodeInput;
+
+      if (!isRouteGroup(key) && METADATA_KEY in childNode) {
+        routes.push({
+          path: childPath,
+          segments: splitPath(childPath).map(parseSegment),
+          node: childNode,
+          metadata: childNode[METADATA_KEY] as RouteMetadata | undefined,
+        });
+      }
+
+      walk(child, childPath);
+    }
+  };
+
+  walk(tree, basePath);
+  return routes;
+};
+
+export type RouteMatch = {
+  path: string;
+  node: RouteNodeInput;
+  metadata: RouteMetadata | undefined;
+  params: Record<string, string | string[]>;
+};
+
+const SEGMENT_SCORE: Record<SegmentPattern['kind'], number> = {
+  static: 3,
+  dynamic: 2,
+  catchAll: 1,
+  optionalCatchAll: 1,
+};
+
+const matchSegments = (
+  patterns: SegmentPattern[],
+  parts: string[],
+): { params: Record<string, string | string[]>; score: number } | null => {
+  const params: Record<string, string | string[]> = {};
+  let score = 0;
+  let index = 0;
+
+  for (const pattern of patterns) {
+    score += SEGMENT_SCORE[pattern.kind];
+
+    if (pattern.kind === 'static') {
+      if (parts[index] !== pattern.value) return null;
+      index += 1;
+      continue;
+    }
+
+    if (pattern.kind === 'dynamic') {
+      if (index >= parts.length) return null;
+      params[pattern.name] = safeDecode(parts[index]);
+      index += 1;
+      continue;
+    }
+
+    const rest = parts.slice(index).map(safeDecode);
+    if (pattern.kind === 'catchAll' && rest.length === 0) return null;
+    if (rest.length > 0) params[pattern.name] = rest;
+    index = parts.length;
+  }
+
+  return index === parts.length ? { params, score } : null;
+};
+
+const safeDecode = (value: string): string => {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+};
+
+/**
+ * Resolves a *live* URL (`/products/123`) back to the declared route (`/products/[id]`).
+ * Static segments outrank dynamic ones, which outrank catch-alls.
+ */
+export const matchRoute = (routes: CollectedRoute[], url: string): RouteMatch | null => {
+  const pathname = url.split('#')[0].split('?')[0];
+  const parts = splitPath(pathname);
+
+  let best: RouteMatch | null = null;
+  let bestScore = Number.NEGATIVE_INFINITY;
+
+  for (const route of routes) {
+    const result = matchSegments(route.segments, parts);
+    if (!result || result.score <= bestScore) continue;
+
+    bestScore = result.score;
+    best = { path: route.path, node: route.node, metadata: route.metadata, params: result.params };
+  }
+
+  return best;
+};
+
+const serializeValue = (value: unknown): string => (value instanceof Date ? value.toISOString() : String(value));
+
+export const toSearchParamsString = (searchParams: Record<string, unknown> | undefined): string => {
+  if (!searchParams) return '';
+
+  const params = new URLSearchParams();
+
+  for (const [key, value] of Object.entries(searchParams)) {
+    if (value === undefined || value === null) continue;
+
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        if (item !== undefined && item !== null) params.append(key, serializeValue(item));
+      }
+      continue;
+    }
+
+    params.append(key, serializeValue(value));
+  }
+
+  const queryString = params.toString();
+  return queryString ? `?${queryString}` : '';
+};
+
+export type BuildHrefArgs = {
+  params?: RouteParams;
+  searchParams?: Record<string, unknown>;
+  hash?: string;
+};
+
+/** Fills the dynamic segments of a declared path and appends the query string and hash. */
+export const buildHref = (path: string, args?: BuildHrefArgs): string => {
+  const parts: string[] = [];
+
+  for (const segment of splitPath(path)) {
+    const pattern = parseSegment(segment);
+
+    if (pattern.kind === 'static') {
+      parts.push(pattern.value);
+      continue;
+    }
+
+    const value = args?.params?.[pattern.name];
+
+    if (pattern.kind === 'dynamic') {
+      if (value === undefined || value === null) {
+        throw new Error(`typed-router: missing route param "${pattern.name}" for "${path}".`);
+      }
+      parts.push(encodeURIComponent(serializeValue(value)));
+      continue;
+    }
+
+    if (value === undefined || value === null) {
+      if (pattern.kind === 'catchAll') {
+        throw new Error(`typed-router: missing catch-all route param "${pattern.name}" for "${path}".`);
+      }
+      continue;
+    }
+
+    for (const item of Array.isArray(value) ? value : [value]) {
+      parts.push(encodeURIComponent(serializeValue(item)));
+    }
+  }
+
+  const pathname = `/${parts.join('/')}`;
+  const hash = args?.hash ? (args.hash.startsWith('#') ? args.hash : `#${args.hash}`) : '';
+
+  return `${pathname}${toSearchParamsString(args?.searchParams)}${hash}`;
+};

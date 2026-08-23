@@ -1,10 +1,7 @@
 import { defineConfig } from 'tsup';
 
 export default defineConfig({
-  entry: {
-    index: 'src/index.ts',
-    'routes.utils': 'src/routes.utils.tsx',
-  },
+  entry: { index: 'src/index.ts' },
   format: ['cjs', 'esm'],
   dts: {
     resolve: true,
@@ -16,7 +13,6 @@ export default defineConfig({
   splitting: false,
   sourcemap: true,
   clean: true,
-  external: ['react'],
   treeshake: true,
   minify: false,
   bundle: true,
