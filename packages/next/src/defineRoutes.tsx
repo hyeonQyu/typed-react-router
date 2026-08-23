@@ -1,0 +1,115 @@
+import {
+  createRouteTree,
+  type GetRouteNode,
+  type ParseSearchParamsOptions,
+  type PathParamsOutput,
+  type RouteMatch,
+  type RouteMetadata,
+  type RoutePaths,
+  type RouteTree,
+  type RouteTreeInput,
+  type RouteTreeInputWithMeta,
+  type SearchParamsOutput,
+} from '@hyeonqyu/typed-router-core';
+import type { ReactElement, Ref } from 'react';
+import { useCurrentRouteImpl, useTypedRouterImpl, useTypedSearchParamsImpl } from './client';
+import type { NavigateArgsTuple } from './navigation.types';
+import { createTypedLink, type TypedLinkProps } from './TypedLink';
+
+export type CurrentRoute<TTree> = {
+  /** The declared route pattern, e.g. `/products/[id]` — `null` when nothing matches. */
+  pathname: RoutePaths<TTree> | null;
+  /** The live URL pathname, e.g. `/products/123`. */
+  url: string;
+  node: RouteMatch['node'] | null;
+  metadata: RouteMetadata | null;
+  params: Record<string, string | string[]>;
+};
+
+export type TypedRouter<TTree> = {
+  push: <TPath extends RoutePaths<TTree>>(pathname: TPath, ...args: NavigateArgsTuple<TTree, TPath>) => void;
+  replace: <TPath extends RoutePaths<TTree>>(pathname: TPath, ...args: NavigateArgsTuple<TTree, TPath>) => void;
+  prefetch: <TPath extends RoutePaths<TTree>>(pathname: TPath, ...args: NavigateArgsTuple<TTree, TPath>) => void;
+  back: () => void;
+  forward: () => void;
+  refresh: () => void;
+};
+
+export type TypedRoutes<TTree> = RouteTree<TTree> & {
+  TypedLink: <TPath extends RoutePaths<TTree>>(
+    props: TypedLinkProps<TTree, TPath> & { ref?: Ref<HTMLAnchorElement> },
+  ) => ReactElement;
+  useCurrentRoute: () => CurrentRoute<TTree>;
+  useCurrentRouteNode: <TPath extends RoutePaths<TTree>>() => GetRouteNode<TTree, TPath> | null;
+  useTypedParams: <TPath extends RoutePaths<TTree>>(pathname: TPath) => PathParamsOutput<TPath>;
+  useTypedPathname: () => RoutePaths<TTree> | null;
+  useTypedRouter: () => TypedRouter<TTree>;
+  useTypedSearchParams: <TPath extends RoutePaths<TTree>>(
+    pathname: TPath,
+    options?: ParseSearchParamsOptions,
+  ) => SearchParamsOutput<TTree, TPath>;
+  $types: { tree: TTree; pathname: RoutePaths<TTree> };
+};
+
+const create = <TTree,>(tree: TTree): TypedRoutes<TTree> => {
+  const routes = createRouteTree(tree);
+  const untyped = routes as RouteTree<unknown>;
+
+  // The hooks below live behind a `'use client'` boundary. They are only *referenced*
+  // here, never called, so this module stays importable from server components.
+  return {
+    ...routes,
+
+    TypedLink: createTypedLink<TTree>(),
+
+    useCurrentRoute: () => useCurrentRouteImpl(untyped) as CurrentRoute<TTree>,
+
+    /** The declared route pattern of the current URL (`/products/[id]`, not `/products/123`). */
+    useTypedPathname: () => useCurrentRouteImpl(untyped).pathname as RoutePaths<TTree> | null,
+
+    /** The tree node behind the current URL. Works on dynamic routes. */
+    useCurrentRouteNode: () => useCurrentRouteImpl(untyped).node as never,
+
+    /**
+     * The dynamic segments of the current URL, typed from the pathname you pass.
+     * Read from the URL rather than `useParams()`, so catch-alls keep their declared name.
+     */
+    useTypedParams: () => useCurrentRouteImpl(untyped).params as never,
+
+    /** The current search params, validated and coerced by the route's schema. */
+    useTypedSearchParams: (pathname, options) => useTypedSearchParamsImpl(untyped, pathname, options) as never,
+
+    useTypedRouter: () => useTypedRouterImpl() as TypedRouter<TTree>,
+
+    $types: {} as TypedRoutes<TTree>['$types'],
+  };
+};
+
+/**
+ * Declares a route tree and returns everything Next.js needs to navigate it type-safely.
+ *
+ * ```ts
+ * export const routes = defineRoutes({
+ *   products: {
+ *     _metadata: { title: 'Products' },
+ *     '[id]': { _metadata: { title: 'Detail' } },
+ *   },
+ * });
+ * ```
+ *
+ * The returned object is safe to import from server components — only the hooks are
+ * client-side, and calling one from a server component fails exactly the way calling
+ * `useRouter` there would.
+ *
+ * Use `defineRoutes.withMeta<TMetadata, TContext>()` when every node should share a
+ * metadata contract.
+ */
+export const defineRoutes = Object.assign(
+  <const TTree extends RouteTreeInput>(tree: TTree): TypedRoutes<TTree> => create(tree),
+  {
+    withMeta:
+      <TMetadata extends RouteMetadata, TContext = unknown>() =>
+      <const TTree extends RouteTreeInputWithMeta<TMetadata, TContext>>(tree: TTree): TypedRoutes<TTree> =>
+        create(tree),
+  },
+);

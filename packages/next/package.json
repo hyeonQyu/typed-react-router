@@ -1,7 +1,7 @@
 {
   "name": "@hyeonqyu/typed-router-next",
-  "version": "1.8.0",
-  "description": "Type-safe IA-first routing for Next.js",
+  "version": "2.0.0",
+  "description": "Type-safe routing for Next.js App Router: one route tree, typed pathnames, params and search params",
   "author": "hyeonQyu <dhk0561@naver.com>",
   "license": "MIT",
   "repository": {
@@ -47,15 +47,19 @@
   },
   "peerDependencies": {
     "next": "^13.0.0 || ^14.0.0 || ^15.0.0 || ^16.0.0",
-    "react": "^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0"
+    "react": "^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0",
+    "react-dom": "^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0",
+    "zod": "^3.24.0 || ^4.0.0"
   },
   "dependencies": {
-    "@hyeonqyu/typed-router-core": "^1.6.0"
+    "@hyeonqyu/typed-router-core": "^2.0.0"
   },
   "devDependencies": {
     "@types/react": "^19.2.5",
+    "@types/react-dom": "^19.2.3",
     "next": "^15.1.6",
     "react": "^19.2.0",
+    "react-dom": "^19.2.0",
     "typescript": "^5.9.3"
   },
   "engines": {
@@ -63,5 +67,10 @@
   },
   "publishConfig": {
     "access": "public"
+  },
+  "peerDependenciesMeta": {
+    "zod": {
+      "optional": true
+    }
   }
 }

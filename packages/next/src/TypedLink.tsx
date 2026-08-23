@@ -1,28 +1,25 @@
-import { buildTypedHref, type TypedLinkHrefObject, type SearchParams } from '@hyeonqyu/typed-router-core';
+import type { RouteArgs, RoutePaths } from '@hyeonqyu/typed-router-core';
+import { buildHref } from '@hyeonqyu/typed-router-core';
 import Link from 'next/link';
-import type { ComponentPropsWithoutRef, ComponentRef } from 'react';
-import { forwardRef } from 'react';
+import { forwardRef, type ComponentPropsWithoutRef, type ReactElement, type Ref } from 'react';
 
-export interface TypedLinkProps<TPathname extends string = string, TRouteTree = unknown>
-  extends Omit<ComponentPropsWithoutRef<typeof Link>, 'href'> {
-  href: TPathname | TypedLinkHrefObject<TPathname, TRouteTree>;
-}
+type AnchorProps = Omit<ComponentPropsWithoutRef<typeof Link>, 'href'>;
 
-export const createTypedLink = <TPathname extends string = string, TRouteTree = unknown>() => {
-  const TypedLink = forwardRef<ComponentRef<typeof Link>, TypedLinkProps<TPathname, TRouteTree>>((props, ref) => {
-    const { href, ...restProps } = props;
+/**
+ * `params`, `searchParams` and `hash` sit next to `href` as ordinary props, so the
+ * required ones are visible in autocomplete instead of hidden inside an object.
+ */
+export type TypedLinkProps<TTree, TPath extends string> = AnchorProps & { href: TPath } & RouteArgs<TTree, TPath>;
 
-    if (typeof href === 'string') {
-      return <Link ref={ref} href={href} {...restProps} />;
-    }
+export const createTypedLink = <TTree,>() => {
+  const TypedLink = forwardRef<HTMLAnchorElement, TypedLinkProps<TTree, string>>(function TypedLink(props, ref) {
+    const { href, params, searchParams, hash, ...linkProps } = props;
 
-    const { pathname, searchParams, hash } = href;
-    const finalHref = buildTypedHref(pathname as string, searchParams as SearchParams, hash);
-
-    return <Link ref={ref} href={finalHref} {...restProps} />;
+    return <Link {...linkProps} ref={ref} href={buildHref(href, { params, searchParams, hash })} />;
   });
 
-  TypedLink.displayName = 'TypedLink';
-
-  return TypedLink;
+  // forwardRef erases generics; this cast restores per-`href` inference at the call site.
+  return TypedLink as unknown as <TPath extends RoutePaths<TTree>>(
+    props: TypedLinkProps<TTree, TPath> & { ref?: Ref<HTMLAnchorElement> },
+  ) => ReactElement;
 };
