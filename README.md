@@ -1,217 +1,165 @@
 # typed-router
 
-Type-safe routing for React and Next.js applications with Zod-powered search parameter validation.
+**English** | [한국어](./README.ko.md)
 
-## Features
+## When you need this
 
-- 🔒 **Type-safe routes**: Catch routing errors at compile time
-- 🔍 **Search parameter validation**: Validate query parameters using Zod schemas
-- 📦 **Framework support**: Works with Next.js App Router and React Router
-- 🎯 **IntelliSense**: Full autocomplete support for routes and parameters
-- 🚀 **Zero runtime overhead**: Compile-time type checking only
+Route paths and search params are usually just strings — the compiler cannot tell you that `/products/[id]` needs an `id`, or that `?sort=` only accepts three values, or that a page you renamed still has three dangling links pointing at the old path. Those bugs show up at runtime, if they show up at all.
 
-## Packages
-
-- `@hyeonqyu/typed-router-core`: Core types and utilities
-- `@hyeonqyu/typed-router-next`: Next.js integration
-- `@hyeonqyu/typed-router-react`: React Router integration (coming soon)
-
-## Installation
+typed-router turns your route map into a single typed object. You declare it once; pathnames, path params, search-param types, navigation, and (for React Router) the router configuration itself are all derived from that one declaration and checked by the compiler.
 
 ```bash
-# For Next.js projects
-npm install @hyeonqyu/typed-router-next zod
-
-# For React projects
-npm install @hyeonqyu/typed-router-react zod
+npm install @hyeonqyu/typed-router-next zod   # Next.js App Router
+npm install @hyeonqyu/typed-router-react zod  # React Router
 ```
 
-## Quick Start
+`zod` is optional — only routes that declare a search-param schema need it, and any [Standard Schema](https://standardschema.dev) validator works too.
 
-### 1. Define Your Routes
+**Already know your stack?** Each guide is self-contained — read only yours:
 
-```typescript
-// routes.ts
-import { createAppRoutes } from '@hyeonqyu/typed-router-next';
+- **[Next.js App Router →](./packages/next/README.md)**
+- **[React Router →](./packages/react/README.md)**
+
+The rest of this page explains the ideas both guides build on.
+
+## The route tree
+
+A route tree is a nested object. Each key is a URL segment; a node becomes a real, navigable route the moment it has a `_metadata` block:
+
+```ts
+// import from '@hyeonqyu/typed-router-next' or '@hyeonqyu/typed-router-react' —
+// the declaration below is identical either way.
+import { defineRoutes } from '@hyeonqyu/typed-router-next';
 import { z } from 'zod';
 
-const { useTypedRouter, useTypedSearchParams, TypedLink } = createAppRoutes()({
-  search: {
-    _metadata: {
-      name: 'search',
-      title: 'Search',
-      searchParamsSchema: z.object({
-        q: z.string(),
-        page: z.number().optional(),
-        category: z.enum(['books', 'electronics', 'clothing']).optional(),
-      }),
-    },
+export const routes = defineRoutes({
+  cart: {
+    _metadata: { title: 'Cart' },
   },
   products: {
     _metadata: {
-      name: 'products',
       title: 'Products',
       searchParamsSchema: z.object({
-        sort: z.enum(['price-asc', 'price-desc', 'name']).optional(),
-        minPrice: z.number().optional(),
-        maxPrice: z.number().optional(),
+        sort: z.enum(['price-asc', 'price-desc']).optional(),
+        page: z.number().default(1),
       }),
+    },
+    '[id]': {
+      _metadata: { title: 'Product detail' },
     },
   },
 });
-
-export { useTypedRouter, useTypedSearchParams, TypedLink };
 ```
 
-### 2. Use Type-Safe Router
+No generics, no currying, no provider to wrap your app in. The key syntax is borrowed directly from Next.js, so the tree can mirror your `app/` directory one for one:
 
-```typescript
-'use client';
-import { useTypedRouter } from './routes';
+| key | means |
+| --- | --- |
+| `products` | a static segment |
+| `[id]` | a required dynamic segment |
+| `[...slug]` | a required catch-all (one or more segments) |
+| `[[...slug]]` | an optional catch-all (zero or more segments) |
+| `(group)` | organises the tree without adding a URL segment |
+| node with no `_metadata` | namespaces its children but is not itself a destination |
 
-export default function MyComponent() {
-  const router = useTypedRouter();
+## Type-safe navigation
 
-  const handleSearch = () => {
-    // ✅ Type-safe - correct parameters
-    router.push('/search', {
-      searchParams: { q: 'laptop', page: 1, category: 'electronics' }
-    });
+From that declaration, `routes` derives every pathname (`/products`, `/products/[id]`, `/cart`, …) as a compile-time string union, and — the part that actually catches bugs — ties each pathname to exactly the arguments it needs. `useTypedRouter()` is one of the hooks `routes` gives you; both framework guides show the rest.
 
-    // ❌ Type error - invalid field
-    router.push('/search', {
-      searchParams: { query: 'laptop' } // Error: 'query' does not exist
-    });
-
-    // ❌ Type error - wrong enum value
-    router.push('/search', {
-      searchParams: { q: 'test', category: 'invalid' } // Error: 'invalid' is not a valid category
-    });
-  };
-
-  return <button onClick={handleSearch}>Search</button>;
-}
-```
-
-### 3. Use Type-Safe Links
-
-```typescript
-import { TypedLink } from './routes';
-
-export default function Navigation() {
-  return (
-    <nav>
-      {/* ✅ Type-safe link with search parameters */}
-      <TypedLink
-        href={{
-          pathname: '/search',
-          searchParams: { q: 'books', category: 'books' }
-        }}
-      >
-        Search Books
-      </TypedLink>
-
-      {/* ✅ Type-safe link with different parameters */}
-      <TypedLink
-        href={{
-          pathname: '/products',
-          searchParams: { sort: 'price-asc', minPrice: 100 }
-        }}
-      >
-        Products (Low to High)
-      </TypedLink>
-    </nav>
-  );
-}
-```
-
-### 4. Read Type-Safe Search Parameters
-
-```typescript
-'use client';
-import { useTypedSearchParams } from './routes';
-
-export default function SearchPage() {
-  // Automatically typed based on schema
-  const searchParams = useTypedSearchParams('/search');
-  // searchParams: { q: string; page?: number; category?: 'books' | 'electronics' | 'clothing' }
-
-  return (
-    <div>
-      <h1>Searching for: {searchParams.q}</h1>
-      {searchParams.category && <p>Category: {searchParams.category}</p>}
-      {searchParams.page && <p>Page: {searchParams.page}</p>}
-    </div>
-  );
-}
-```
-
-## API Reference
-
-### RouteNodeMetadata
-
-```typescript
-type RouteNodeMetadata = {
-  title?: string;
-  label?: string;
-  description?: string;
-  href?: (context: TContext) => string;
-  accessible?: (context: TContext) => boolean;
-  searchParamsSchema?: z.ZodType<any>; // ✨ New!
-};
-```
-
-### useTypedRouter
-
-Returns a router instance with type-safe methods:
-
-```typescript
+```ts
 const router = useTypedRouter();
 
-router.push(pathname, options); // Navigate with type-safe searchParams
-router.replace(pathname, options); // Replace with type-safe searchParams
-router.prefetch(pathname, options); // Prefetch with type-safe searchParams
-router.back(); // Go back
-router.forward(); // Go forward
-router.refresh(); // Refresh current route
+router.push('/products/[id]', { params: { id: 42 } });          // ✅
+router.push('/products', { searchParams: { sort: 'price-asc' } }); // ✅
+router.push('/cart');                                            // ✅ nothing required
+
+router.push('/products/[id]');            // ❌ params.id is required
+router.push('/produtcs');                 // ❌ no such route
+router.push('/products', { searchParams: { sort: 'cheap' } });  // ❌ not in the enum
+router.push('/products', { searchParams: { pge: 1 } });         // ❌ unknown key
+router.push('/cart', { searchParams: { anything: 1 } });        // ❌ /cart declares no schema
+router.push('/products', { params: { id: 1 } });                // ❌ no dynamic segments here
 ```
 
-### useTypedSearchParams
+Path params (`params`) and search params (`searchParams`) are always separate arguments, so it's never ambiguous which one fills the URL and which one fills the query string.
 
-Returns type-safe search parameters for the current route:
+## Reading params back
 
-```typescript
-const searchParams = useTypedSearchParams(pathname, options);
+Reading search params runs your schema for real — values arrive from the URL as strings, so each field's own schema is asked which reading it accepts. A `z.number()` field gets `2`, not `"2"`; a `z.string()` field keeps `"0123"` intact; `.default()` values are filled in.
+
+If a hand-edited URL fails validation, you choose what happens:
+
+```ts
+useTypedSearchParams('/search', { onError: 'throw' });   // default — surfaces bad links early
+useTypedSearchParams('/search', { onError: 'default' }); // drop bad fields, keep the rest
+useTypedSearchParams('/search', { onError: 'raw' });     // skip validation
 ```
 
-**Options:**
+## Route metadata
 
-- `onError`: Error handling mode ('throw' | 'default' | 'raw')
+`_metadata` is inferred per node, so different routes can carry different fields — `title`, `label`, `description` and `accessible` may be plain values or functions of an app context:
 
-### TypedLink
+```ts
+import { resolveMetadata } from '@hyeonqyu/typed-router-core';
 
-Type-safe Link component:
-
-```typescript
-<TypedLink
-  href={pathname | { pathname, searchParams?, hash? }}
-  {...otherLinkProps}
->
-  Link Text
-</TypedLink>
+const meta = resolveMetadata(routes.getMetadata('/cart'), { locale, userId });
 ```
+
+Want every node to share one metadata contract instead? Opt in explicitly:
+
+```ts
+const routes = defineRoutes.withMeta<{ name: string }, { locale: string }>()({ ... });
+```
+
+## Framework-agnostic use
+
+The route tree is plain data. `@hyeonqyu/typed-router-core` exposes the same declaration with no React dependency at all — for scripts, tests, or a sitemap generator — and the `routes` object from either framework package carries these same methods alongside its hooks:
+
+```ts
+import { defineRoutes } from '@hyeonqyu/typed-router-core';
+
+const routes = defineRoutes({ /* same shape as above */ });
+
+routes.paths;                        // every declared pathname
+routes.buildHref('/products/[id]', { params: { id: 42 } }); // '/products/42'
+routes.match('/products/42');        // → { path: '/products/[id]', params: { id: '42' }, node, metadata }
+routes.getMetadata('/products');
+routes.parseSearchParams('/products', new URLSearchParams(search));
+```
+
+## Packages
+
+| package | for |
+| --- | --- |
+| [`@hyeonqyu/typed-router-core`](./packages/core/README.md) | the tree, types and URL helpers — framework-free |
+| [`@hyeonqyu/typed-router-next`](./packages/next/README.md) | Next.js App Router |
+| [`@hyeonqyu/typed-router-react`](./packages/react/README.md) | React Router 6/7 |
 
 ## Examples
 
-See the [examples directory](./examples) for complete working examples:
+Two runnable apps declare the *same* tree and share component code verbatim — proof that the API is genuinely identical across adapters:
 
-- [Next.js Example](./examples/next-example) - E-commerce app with search parameters validation
-- [React Example](./examples/react-example) - React Router integration (coming soon)
+```bash
+yarn workspace next-example dev    # http://localhost:3000
+yarn workspace react-example dev   # http://localhost:5173
+```
+
+## Upgrading from 1.x
+
+2.0 is a breaking rewrite. See [MIGRATION.md](./MIGRATION.md).
+
+## Development
+
+```bash
+yarn install
+yarn build                         # all packages + both examples
+yarn test                          # type tests, including cases that must fail to compile
+node --test tests/runtime.test.mjs # runs against the built dist, so build first
+yarn lint
+```
+
+`tests/core.types.test-d.ts` is half positive assertions and half `@ts-expect-error`, so `yarn test` fails both when something that should compile stops compiling *and* when something that should be rejected starts slipping through.
 
 ## License
 
 MIT
-
-## Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
