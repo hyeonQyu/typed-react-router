@@ -1,38 +1,31 @@
-import { type PartialRouteTree, type ResolvedRouteTree, type RoutePathname, type RouteTree } from '@hyeonqyu/typed-router-core';
-import { createAppRoutes as coreCreateAppRoutes } from '@hyeonqyu/typed-router-core/routes.utils';
-import { ReactNode } from 'react';
-import { createTypedNavigate } from './navigate.hooks';
-import { createTypedLink } from './TypedLink';
-
-export const createAppRoutes = <TMetadata extends { component: ReactNode }, TContext>() => {
-  return <TRouteTree extends PartialRouteTree<TMetadata, TContext>>(appRoutes: TRouteTree & RouteTree<TMetadata, TContext, TRouteTree>) => {
-    const { AppRoutesProvider, useAppRoutes, getPathnameFromNode, freezeAppRoutes, useCurrentRouteNode, _types } = coreCreateAppRoutes<
-      TMetadata,
-      TContext
-    >()(appRoutes);
-
-    type Pathname = RoutePathname<TMetadata, TContext, TRouteTree>;
-    type Routes = ResolvedRouteTree<TMetadata, TContext, TRouteTree>;
-
-    const TypedLink = createTypedLink<Pathname, TRouteTree>();
-    const useTypedNavigate = createTypedNavigate<Pathname, TRouteTree>();
-
-    return {
-      AppRoutesProvider,
-      useAppRoutes: useAppRoutes as () => Routes,
-      TypedLink,
-      useTypedNavigate,
-      getPathnameFromNode,
-      freezeAppRoutes,
-      useCurrentRouteNode,
-      appRoutes,
-      _types: {
-        ..._types,
-        AppRoutesPathname: {} as Pathname,
-      },
-    };
-  };
-};
-
-export * from '@hyeonqyu/typed-router-core';
+export { defineRoutes, type CurrentRoute, type TypedRouter, type TypedRoutes } from './defineRoutes';
+export type { NavigateArgs, NavigateArgsTuple, NavigateOptions } from './navigation.types';
+export { toReactRouterSegment, toRouteObjects } from './toRouteObjects';
 export type { TypedLinkProps } from './TypedLink';
+
+export {
+  buildHref,
+  collectRoutes,
+  isRouteGroup,
+  matchRoute,
+  METADATA_KEY,
+  parseSearchParams,
+  resolveMetadata,
+  resolveMetadataValue,
+  SearchParamsParseError,
+  toSearchParamsString,
+  type AnySchema,
+  type BuiltinMetadata,
+  type MetadataValue,
+  type Pathname,
+  type PathParams,
+  type PathParamsOutput,
+  type RouteArgs,
+  type RouteMatch,
+  type RouteMetadata,
+  type RouteMetadataOf,
+  type RouteNodeOf,
+  type RoutePaths,
+  type SearchParams,
+  type SearchParamsErrorMode,
+} from '@hyeonqyu/typed-router-core';

@@ -1,13 +1,21 @@
 import { defineConfig } from 'tsup';
 
 export default defineConfig({
-  entry: ['src/index.ts'],
+  entry: { index: 'src/index.ts' },
   format: ['cjs', 'esm'],
-  dts: true,
+  dts: {
+    resolve: true,
+    compilerOptions: {
+      composite: false,
+      incremental: false,
+    },
+  },
   splitting: false,
   sourcemap: true,
   clean: true,
   external: ['react', 'react-dom', 'react-router-dom', '@hyeonqyu/typed-router-core'],
   treeshake: true,
   minify: false,
+  bundle: true,
+  keepNames: true,
 });

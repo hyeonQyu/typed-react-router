@@ -1,30 +1,24 @@
-import { buildTypedHref, type SearchParams, type TypedLinkHrefObject } from '@hyeonqyu/typed-router-core';
-import type { ComponentPropsWithoutRef, ComponentRef } from 'react';
-import { forwardRef } from 'react';
+import { buildHref, type RouteArgs, type RoutePaths } from '@hyeonqyu/typed-router-core';
+import { forwardRef, type ComponentPropsWithoutRef, type ReactElement, type Ref } from 'react';
 import { Link } from 'react-router-dom';
 
-export interface TypedLinkProps<TPathname extends string = string, TRouteTree = unknown> extends Omit<
-  ComponentPropsWithoutRef<typeof Link>,
-  'to'
-> {
-  to: TPathname | TypedLinkHrefObject<TPathname, TRouteTree>;
-}
+type AnchorProps = Omit<ComponentPropsWithoutRef<typeof Link>, 'to' | 'href'>;
 
-export const createTypedLink = <TPathname extends string = string, TRouteTree = unknown>() => {
-  const TypedLink = forwardRef<ComponentRef<typeof Link>, TypedLinkProps<TPathname, TRouteTree>>((props, ref) => {
-    const { to, ...restProps } = props;
+/**
+ * Uses `href` rather than React Router's `to`, so the same link markup compiles
+ * against both the React and the Next.js adapter.
+ */
+export type TypedLinkProps<TTree, TPath extends string> = AnchorProps & { href: TPath } & RouteArgs<TTree, TPath>;
 
-    if (typeof to === 'string') {
-      return <Link ref={ref} to={to} {...restProps} />;
-    }
+export const createTypedLink = <TTree,>() => {
+  const TypedLink = forwardRef<HTMLAnchorElement, TypedLinkProps<TTree, string>>(function TypedLink(props, ref) {
+    const { href, params, searchParams, hash, ...linkProps } = props;
 
-    const { pathname, searchParams, hash } = to;
-    const finalTo = buildTypedHref(pathname as string, searchParams as SearchParams, hash);
-
-    return <Link ref={ref} to={finalTo} {...restProps} />;
+    return <Link {...linkProps} ref={ref} to={buildHref(href, { params, searchParams, hash })} />;
   });
 
-  TypedLink.displayName = 'TypedLink';
-
-  return TypedLink;
+  // forwardRef erases generics; this cast restores per-`href` inference at the call site.
+  return TypedLink as unknown as <TPath extends RoutePaths<TTree>>(
+    props: TypedLinkProps<TTree, TPath> & { ref?: Ref<HTMLAnchorElement> },
+  ) => ReactElement;
 };

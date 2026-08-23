@@ -1,7 +1,7 @@
 {
   "name": "@hyeonqyu/typed-router-react",
-  "version": "1.8.0",
-  "description": "Type-safe IA-first routing for React Router",
+  "version": "2.0.0",
+  "description": "Type-safe routing for React Router: one route tree, typed pathnames, params, search params and generated router config",
   "author": "hyeonQyu <dhk0561@naver.com>",
   "license": "MIT",
   "repository": {
@@ -47,10 +47,11 @@
   "peerDependencies": {
     "react": "^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0",
     "react-dom": "^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0",
-    "react-router-dom": "^6.0.0 || ^7.0.0"
+    "react-router-dom": "^6.0.0 || ^7.0.0",
+    "zod": "^3.24.0 || ^4.0.0"
   },
   "dependencies": {
-    "@hyeonqyu/typed-router-core": "^1.6.0"
+    "@hyeonqyu/typed-router-core": "^2.0.0"
   },
   "devDependencies": {
     "@types/react": "^19.2.5",
@@ -66,5 +67,10 @@
   },
   "publishConfig": {
     "access": "public"
+  },
+  "peerDependenciesMeta": {
+    "zod": {
+      "optional": true
+    }
   }
 }
