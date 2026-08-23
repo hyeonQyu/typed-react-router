@@ -1,0 +1,13 @@
+{
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "baseUrl": "..",
+    "paths": {
+      "@hyeonqyu/typed-router-core": ["./packages/core/src"],
+      "@hyeonqyu/typed-router-react": ["./packages/react/src"],
+      "@hyeonqyu/typed-router-next": ["./packages/next/src"]
+    }
+  },
+  "include": ["**/*.ts", "**/*.tsx"]
+}
