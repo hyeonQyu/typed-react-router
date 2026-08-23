@@ -25,3 +25,4 @@ dist
 # Example app build output
 .next
 *.tsbuildinfo
+.claude
