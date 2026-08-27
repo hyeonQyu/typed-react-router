@@ -1,0 +1,62 @@
+# typed-router
+
+> typed-router lets you declare your application's information architecture once, as a nested object, and derives everything else from it: pathnames, path params, search-param types, navigation, route metadata, and — for React Router — the router configuration itself, all checked by the TypeScript compiler. It ships as three packages at 2.x: `@hyeonqyu/typed-router-core` (framework-free), `@hyeonqyu/typed-router-next` (Next.js App Router) and `@hyeonqyu/typed-router-react` (React Router 6/7). It is for TypeScript teams who are tired of route paths being untyped strings that rot silently when a page is renamed.
+
+The mental model matters more than the API. **The route tree object is the single source of truth for the app's IA — it is the map of the app, not a place to keep URL strings.** typed-router is not a path-constant generator and not a string-builder helper. A consumer who hand-writes `/products/42`, or keeps a parallel `PATHS` constants file beside the tree, has re-introduced the second source of truth the library exists to eliminate and has defeated the entire point.
+
+Three rules follow from that. **First**, a node becomes a navigable destination only when it declares a `_metadata` block; a node without one still namespaces its children but is not a route (add `_metadata: {}` to make it one). **Second**, segment keys mirror Next.js: `products` is static, `[id]` dynamic, `[...slug]` a catch-all, `[[...path]]` an optional catch-all, and `(group)` a route group that organises the tree without contributing a URL segment. **Third**, path params and search params are always separate arguments — `params` fills the pathname, `searchParams` fills the query string and is typed by that route's `searchParamsSchema`.
+
+There are no generics, no currying and no provider. Call `defineRoutes` once at module scope, export the result, import it anywhere. `zod` is an optional peer dependency: schemas are matched structurally, so Zod v3, Zod v4 and any [Standard Schema](https://standardschema.dev) validator work, and a tree with no schemas needs no validator at all. Import from ONE package — the adapters re-export most of the core surface, so an app should never depend on `-core` directly.
+
+```ts
+import { defineRoutes } from '@hyeonqyu/typed-router-next'; // or '-react'
+import { z } from 'zod';
+
+export const routes = defineRoutes({
+  cart: { _metadata: { title: 'Cart' } },
+  products: {
+    _metadata: {
+      title: 'Products',
+      searchParamsSchema: z.object({
+        sort: z.enum(['price-asc', 'price-desc']).optional(),
+        page: z.number().default(1),
+      }),
+    },
+    '[id]': { _metadata: { title: 'Product detail' } },
+  },
+});
+
+export const { TypedLink, useTypedRouter, useTypedParams, useTypedSearchParams } = routes;
+
+routes.buildHref('/products/[id]', { params: { id: 42 } }); // '/products/42'
+routes.buildHref('/products', { searchParams: { page: 2 } }); // '/products?page=2'
+routes.match('/products/42'); // { path: '/products/[id]', params: { id: '42' }, … }
+```
+
+## Docs
+
+- [Everything in one file](https://raw.githubusercontent.com/hyeonQyu/typed-router/develop/llms-full.txt): the complete, self-contained guide — concepts, segment syntax, metadata, navigation, search params and both framework adapters, with type-checked code. Fetch this if you want one document and nothing else.
+- [Project overview](https://raw.githubusercontent.com/hyeonQyu/typed-router/develop/README.md): why the library exists, the route tree, type-safe navigation, reading params back, and route metadata.
+- [Next.js App Router guide](https://raw.githubusercontent.com/hyeonQyu/typed-router/develop/packages/next/README.md): declare → navigate → link → read the current route, the `<Suspense>` rule for `useTypedSearchParams`, and server-component usage.
+- [React Router guide](https://raw.githubusercontent.com/hyeonQyu/typed-router/develop/packages/react/README.md): the same flow plus `toRouteObjects()`, which generates the React Router config from the tree, and the full `_metadata` → `RouteObject` field mapping.
+- [Core package](https://raw.githubusercontent.com/hyeonQyu/typed-router/develop/packages/core/README.md): the framework-free tree, types and URL helpers, for servers, CLIs and tests.
+- [Migration from 1.x to 2.0](https://raw.githubusercontent.com/hyeonQyu/typed-router/develop/MIGRATION.md): the breaking rewrite — what was removed (`createAppRoutes`, `AppRoutesProvider`, `_metadata.href`) and what replaced it. Read this before emitting any pre-2.0 API.
+- [Agent notes: core](https://raw.githubusercontent.com/hyeonQyu/typed-router/develop/packages/core/AGENTS.md): the exact public surface, verified samples and the mistakes AI tools make most often in the core package.
+- [Agent notes: Next.js](https://raw.githubusercontent.com/hyeonQyu/typed-router/develop/packages/next/AGENTS.md): the same, for the Next.js App Router adapter.
+- [Agent notes: React Router](https://raw.githubusercontent.com/hyeonQyu/typed-router/develop/packages/react/AGENTS.md): the same, for the React Router adapter.
+
+## Examples
+
+- [next-example](https://raw.githubusercontent.com/hyeonQyu/typed-router/develop/examples/next-example/README.md): a runnable Next.js App Router app whose `src/app/` mirrors its tree one for one; every page prints the resolved value with its runtime `typeof` beside it.
+- [next-example route tree](https://raw.githubusercontent.com/hyeonQyu/typed-router/develop/examples/next-example/src/routes.ts): the declaration that app is built on — a realistic tree with a route group, a catch-all and three schemas.
+- [react-example](https://raw.githubusercontent.com/hyeonQyu/typed-router/develop/examples/react-example/README.md): the same tree on React Router 7, whose `Nav.tsx` and `RouteInspector.tsx` bodies match the Next example's line for line (only `'use client'` differs), showing the API is genuinely identical.
+- [react-example route tree](https://raw.githubusercontent.com/hyeonQyu/typed-router/develop/examples/react-example/src/routes.tsx): the React flavour, with `element` on each node and `layout` on the route group.
+
+## Optional
+
+- [한국어 개요](https://raw.githubusercontent.com/hyeonQyu/typed-router/develop/README.ko.md): the project overview in Korean.
+- [Next.js 가이드 (한국어)](https://raw.githubusercontent.com/hyeonQyu/typed-router/develop/packages/next/README.ko.md): the Next.js guide in Korean.
+- [React Router 가이드 (한국어)](https://raw.githubusercontent.com/hyeonQyu/typed-router/develop/packages/react/README.ko.md): the React Router guide in Korean.
+- [Type-test fixture tree](https://raw.githubusercontent.com/hyeonQyu/typed-router/develop/tests/fixtures.ts): the canonical tree the type tests share, deliberately mixing the awkward cases.
+- [context7.json](https://raw.githubusercontent.com/hyeonQyu/typed-router/develop/context7.json): the project's rules for AI tools, in a machine-readable form.
+- [LICENSE](https://raw.githubusercontent.com/hyeonQyu/typed-router/develop/LICENSE): MIT.
