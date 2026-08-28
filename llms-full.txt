@@ -1,0 +1,843 @@
+# typed-router — complete guide
+
+> Declare your route tree once; get type-safe pathnames, path params, search params, navigation
+> and route metadata — checked by the TypeScript compiler. For the Next.js App Router and
+> React Router 6/7. Version 2.x. MIT. https://github.com/hyeonQyu/typed-router
+
+Self-contained: concepts, the route tree, segment syntax, metadata, navigation, search params and
+both framework adapters, with code type-checked against the package sources. Nothing here defers
+to another document.
+
+---
+
+## 1. What this is, and what it is not
+
+Route paths and search params are usually just strings. The compiler cannot tell you that
+`/products/[id]` needs an `id`, that `?sort=` accepts only three values, or that the page you
+renamed still has dangling links pointing at the old path. typed-router turns the route map into a
+single typed object from which pathnames, path params, search-param types, navigation, metadata
+and — for React Router — the router configuration itself are all derived.
+
+**The mental model matters more than the API.** The route tree object is the source of truth for the
+application's information architecture: *the map of the app*, not a place to keep URL strings. This
+is not a path-constant generator or a string-builder helper. Two consequences, and they are the
+mistakes AI tools make most often — never hand-write a URL (`'/products/42'`,
+`` `/products/${id}` ``), and never keep a parallel route list (a `PATHS` file, a hand-written
+`<Route>` config, a nav array of literals). Both re-introduce the second, unchecked source of truth
+the library exists to eliminate, and both survive a segment rename silently.
+
+**Scope of that claim, stated precisely.** The tree is authoritative for pathname *types*, params,
+search-param types and metadata. Whether it also decides which routes *exist* depends on the adapter:
+
+- **React Router** — `toRouteObjects()` builds the router configuration from the tree, so a route
+  cannot exist without being declared in it. The claim holds without qualification.
+- **Next.js App Router** — the `src/app/` directory decides which routes exist; the tree mirrors it
+  by hand. Nothing checks that the two agree. Delete a page from `app/` and the tree still
+  type-checks its pathname, so a `TypedLink` to it compiles cleanly and 404s at runtime; add a page
+  to `app/` without declaring it and the route is live but missing from `routes.paths`. Say it as:
+  **the tree is authoritative for types and metadata, `app/` is authoritative for route existence.**
+
+| package | for |
+| --- | --- |
+| `@hyeonqyu/typed-router-core` | the tree, its types and URL helpers — no React, no router |
+| `@hyeonqyu/typed-router-next` | Next.js App Router |
+| `@hyeonqyu/typed-router-react` | React Router 6/7 |
+
+```bash
+npm install @hyeonqyu/typed-router-next zod   # or @hyeonqyu/typed-router-react
+```
+
+Install **one** package. The adapters re-export most of the core surface (`buildHref`, `matchRoute`,
+`collectRoutes`, `parseSearchParams`, `resolveMetadata`, `toSearchParamsString`,
+`SearchParamsParseError`, `METADATA_KEY`, and the type surface), so an application should never add
+`-core` to its dependencies — that only invites version skew. Use `-core` directly only when there
+is genuinely no router: a script, a server, a CLI, a sitemap generator, tests.
+
+`zod` is an **optional** peer dependency (`^3.24.0 || ^4.0.0`). Schemas are matched structurally on
+`_input` / `_output` / `~standard` / `shape` / `safeParse` / `parse`, so Zod v3, Zod v4 and any
+[Standard Schema](https://standardschema.dev) validator (Valibot, ArkType, …) work, and a tree with
+no `searchParamsSchema` needs no validator at all. The library imports no validation library in its
+own types — never narrow a public type to `z.ZodType`.
+
+---
+
+## 2. The route tree
+
+A nested object literal. Each key is a URL segment. A node becomes a **navigable destination** the
+moment it declares a `_metadata` block; a node without one still namespaces its children but is not
+itself a route.
+
+```ts
+import { defineRoutes } from '@hyeonqyu/typed-router-next'; // or '-react', or '-core'
+import { z } from 'zod';
+
+export const routes = defineRoutes({
+  home: { _metadata: { title: 'Home' } },
+  products: {
+    _metadata: {
+      title: 'Products',
+      accessible: true,
+      searchParamsSchema: z.object({
+        sort: z.enum(['price-asc', 'price-desc', 'name']).optional(),
+        page: z.number().default(1),
+        inStock: z.boolean().optional(),
+        tags: z.array(z.string()).optional(),
+      }),
+    },
+    '[id]': {
+      _metadata: { title: 'Product detail' },
+      reviews: {
+        _metadata: {
+          title: 'Reviews',
+          searchParamsSchema: z.object({ star: z.number().min(1).max(5).optional() }),
+        },
+      },
+    },
+  },
+  search: {
+    _metadata: {
+      title: 'Search',
+      // `q` is required, so `searchParams` is required at every call site for this route.
+      searchParamsSchema: z.object({
+        q: z.string(),
+        category: z.enum(['electronics', 'books', 'clothing']).optional(),
+      }),
+    },
+  },
+  docs: { '[...slug]': { _metadata: { title: 'Docs' } } },
+  files: { '[[...path]]': { _metadata: { title: 'Files' } } },
+  // A route group organises the tree without adding a URL segment:
+  // these live at /profile and /orders, not /(account)/profile.
+  '(account)': {
+    profile: { _metadata: { title: 'Profile' } },
+    orders: { _metadata: { title: 'Orders' } },
+  },
+  // No `_metadata`: namespaces its child, but /internal is NOT a destination.
+  internal: { stats: { _metadata: { title: 'Stats' } } },
+});
+```
+
+That declares exactly these pathnames, and nothing else: `/home`, `/products`, `/products/[id]`,
+`/products/[id]/reviews`, `/search`, `/docs/[...slug]`, `/files/[[...path]]`, `/profile`,
+`/orders`, `/internal/stats`.
+
+Note what is *absent*: `/internal` (no `_metadata`), `/(account)/profile` (groups contribute no
+segment), and `/files` — the metadata sits on the optional-catch-all child, so the navigable path is
+`/files/[[...path]]`. That last one differs from Next.js's own filesystem behaviour, where an
+optional catch-all also serves the parent segment.
+
+### Segment key syntax
+
+Borrowed directly from Next.js, so the tree can mirror an `app/` directory one for one.
+
+| key | means | example URL |
+| --- | --- | --- |
+| `products` | a static segment | `/products` |
+| `[id]` | a required dynamic segment | `/products/42` |
+| `[...slug]` | a required catch-all (one or more segments) | `/docs/guide/intro` |
+| `[[...path]]` | an optional catch-all (zero or more segments) | `/files`, `/files/a/b` |
+| `(group)` | organises the tree, contributes no URL segment | `(account)/profile` → `/profile` |
+| node with no `_metadata` | namespaces its children; not a destination | — |
+
+### There is no setup
+
+No generics, no currying, no provider, nothing to mount. `defineRoutes({...})` is called once at
+module scope and returns a plain object you export and import anywhere; the tree it carries
+(`routes.routes`) is structurally frozen, the returned object itself is not.
+
+```ts
+export const routes = defineRoutes({ /* … */ });
+export const { TypedLink, useTypedRouter, useTypedParams, useTypedSearchParams } = routes;
+```
+
+Do **not** write `defineRoutes<Meta, Ctx>({...})`, `<AppRoutesProvider>`, `useAppRoutes()` or
+`createAppRoutes<M, C>()({...})`. The first does not compile (the single type parameter is the
+tree, not the metadata); the rest are 1.x APIs removed in 2.0. The only curried form is
+`defineRoutes.withMeta<TMetadata, TContext>()({...})`, covered in §4.
+
+---
+
+## 3. Derived types
+
+Everything you would otherwise hand-declare comes off the tree.
+
+```ts
+import type { Pathname, SearchParams, RouteMetadataOf, RouteNodeOf, PathParams, PathParamsOutput }
+  from '@hyeonqyu/typed-router-next';
+
+type AppPathname = typeof routes.$types.pathname;  // the union, with no extra import
+type AlsoAppPathname = Pathname<typeof routes>;    // identical
+type ProductsQuery = SearchParams<typeof routes, '/products'>;
+// { sort?: 'price-asc' | 'price-desc' | 'name'; page: number; inStock?: boolean; tags?: string[] }
+type ProductsMeta = RouteMetadataOf<typeof routes, '/products'>;   // title: 'Products', …
+type ProductNode = RouteNodeOf<typeof routes, '/products/[id]'>;   // has a `reviews` key
+type DocsWrite = PathParams<'/docs/[...slug]'>;        // { slug: readonly (string | number)[] }
+type DocsRead = PathParamsOutput<'/docs/[...slug]'>;   // { slug: string[] }
+```
+
+Two families, and mixing them up is a common compile error. `Pathname`, `SearchParams`,
+`RouteNodeOf` and `RouteMetadataOf` take the **routes object** (`typeof routes`); `RoutePaths`,
+`GetRouteNode`, `CurrentRoute` and `TypedRoutes` take the raw **tree**
+(`typeof routes.$types.tree`). Neither mistake fails where you made it.
+`Pathname<typeof routes.routes>` does not resolve at all — `never` widens the segment keys to
+`string` and tsc reports `Type instantiation is excessively deep and possibly infinite` (TS2589).
+`RoutePaths<typeof routes>` walks the routes object instead of the tree and yields nonsense
+pathnames such as `'/routes/products'` and `'/routes/products/[id]'`. Either way every real
+pathname then errors with a confusing message.
+
+`PathParams` is what you **write** (`string | number`, since it gets stringified);
+`PathParamsOutput` is what you **read back** (always `string` / `string[]`, all a URL can carry).
+Do not expect `params.id` to be a number on the read side.
+
+---
+
+## 4. Route metadata
+
+`_metadata` is inferred **per node**, so different routes may carry different fields and your own
+fields survive with their literal types. Five built-ins are recognised:
+
+```ts
+type BuiltinMetadata<TContext = unknown> = {
+  title?: string | ((context: TContext) => string);
+  label?: string | ((context: TContext) => string);
+  description?: string | ((context: TContext) => string);
+  accessible?: boolean | ((context: TContext) => boolean);
+  searchParamsSchema?: AnySchema;
+};
+```
+
+Anything else on `_metadata` is kept as-is — that is how React Router's `element`, `loader`,
+`errorElement` and your own `icon` or `roles` fields get through.
+
+The four resolvable fields may be plain values or functions of an app context. `resolveMetadata`
+returns a shallow copy and touches **only** those four keys — your own functions (a `loader`, an
+element factory) are deliberately left uncalled:
+
+```ts
+import { resolveMetadata, resolveMetadataValue } from '@hyeonqyu/typed-router-next';
+
+const meta = resolveMetadata(routes.getMetadata('/products'), { locale, userId });
+meta?.title;  // a string, never an unresolved function
+const visible = resolveMetadataValue(meta?.accessible, { locale, userId }); // boolean | undefined
+```
+
+Rendering `getMetadata(path).title` directly is a bug when that title was declared as a function —
+React renders nothing or crashes.
+
+**A shared metadata contract.** When every node must satisfy one contract, opt in explicitly. Put
+only your **own** fields in `TMetadata`; the built-ins arrive by intersection with
+`BuiltinMetadata<TContext>`, so redeclaring `title` or `accessible` there causes trouble.
+
+```ts
+type AppContext = { locale: 'en' | 'ko'; isAdmin: boolean };
+type AppMeta = { icon: string };
+
+export const adminRoutes = defineRoutes.withMeta<AppMeta, AppContext>()({
+  dashboard: {
+    _metadata: { icon: 'gauge', title: 'Dashboard' },
+    settings: {
+      _metadata: {
+        icon: 'cog',
+        // Annotate the context parameter. `const TTree` inference does not push a
+        // contextual type into `_metadata`, so a bare `(ctx) => …` is an implicit any.
+        title: (ctx: AppContext) => (ctx.locale === 'ko' ? '설정' : 'Settings'),
+        accessible: (ctx: AppContext) => ctx.isAdmin,
+      },
+    },
+  },
+});
+```
+
+Note the empty `()` between the type arguments and the tree — that is the whole curried form.
+
+---
+
+## 5. Building URLs
+
+`routes.buildHref(path, args)` is the only correct way to produce a URL. The first argument is a
+**declared pattern**, never a concrete URL.
+
+```ts
+routes.buildHref('/home');                                          // '/home'
+routes.buildHref('/products/[id]', { params: { id: 42 } });         // '/products/42'
+routes.buildHref('/products/[id]/reviews', {
+  params: { id: 42 }, searchParams: { star: 5 }, hash: 'top',
+});                                                                 // '/products/42/reviews?star=5#top'
+routes.buildHref('/products', { searchParams: { sort: 'price-asc', tags: ['sale'] } });
+routes.buildHref('/docs/[...slug]', { params: { slug: ['guide', 'intro'] } }); // '/docs/guide/intro'
+routes.buildHref('/files/[[...path]]');                             // '/files'
+routes.buildHref('/profile');                                       // the group contributes nothing
+```
+
+The argument object is typed per route by `RouteArgs`, and each key is **required**, **optional** or
+**forbidden** (`?: never`):
+
+- `params` — required when the path has required dynamic segments or a required catch-all; optional
+  for an optional catch-all; forbidden on a fully static path.
+- `searchParams` — typed from the schema's **input** type, so `.default()` fields stay optional at
+  the call site; forbidden entirely when the route declares no `searchParamsSchema`.
+- `hash` — always optional.
+- The whole object may be omitted when nothing is required, which is why `buildHref('/home')`
+  compiles and `buildHref('/products/[id]')` does not.
+
+Segments are `encodeURIComponent`-encoded and `Date` values serialise to ISO strings. A missing
+dynamic or required catch-all param throws at runtime:
+`typed-router: missing route param "id" for "/products/[id]".` — 1.x navigated to the literal
+string `/products/[id]`; 2.0 refuses on purpose.
+
+```ts
+routes.buildHref('/products/42');                          // ❌ not a declared pathname
+routes.buildHref('/products/[id]');                        // ❌ params.id is required
+routes.buildHref('/products/[id]', { searchParams: { id: 42 } }); // ❌ path params ≠ search params
+routes.buildHref('/home', { searchParams: { page: 1 } });  // ❌ /home declares no schema
+routes.buildHref('/internal');                             // ❌ no _metadata → not a destination
+routes.buildHref('/(account)/profile');                    // ❌ groups never appear in a URL
+routes.buildHref('/products', { searchParams: { sort: 'cheap' } }); // ❌ not in the enum
+routes.buildHref('/products', { searchParams: { pge: 1 } });        // ❌ unknown key
+```
+
+Putting a path param inside `searchParams` is the most common port from 1.x, where the two were
+merged. In 2.0 they are separate keys and the wrong shape does not compile.
+
+---
+
+## 6. Search params
+
+Declare a `searchParamsSchema` on any route whose query string you intend to read. Reading runs the
+schema **for real**: values arrive from a URL as strings, so each field's own sub-schema is asked
+which reading it accepts. `z.number()` gets `2`, `z.string()` keeps `'0123'` intact, `z.boolean()`
+gets `true`, a single value satisfies an array field, repeated keys fold into an array, and
+`.default()` values are filled in.
+
+```ts
+const query = routes.parseSearchParams('/products', { page: '2', tags: ['a', 'b'] });
+query.page;  // 2 — a number
+query.tags;  // ['a', 'b']
+
+// Accepts a plain record, a URLSearchParams, or any iterable of [key, value] entries.
+routes.parseSearchParams('/products', new URLSearchParams('page=3&tags=a&tags=b'));
+```
+
+The read side returns the schema's **output** type (defaults applied, transforms run); the write
+side (`buildHref`, `push`, `TypedLink`) takes the **input** type — which is why a `.default()`
+field is optional to write but always present to read.
+
+**Validation throws by default.** Any user-editable URL eventually fails, so choose deliberately:
+
+```ts
+routes.parseSearchParams('/search', raw);                         // 'throw' (default)
+routes.parseSearchParams('/search', raw, { onError: 'default' }); // drop bad fields, keep the rest
+routes.parseSearchParams('/search', raw, { onError: 'raw' });     // skip validation entirely
+```
+
+- `'throw'` raises `SearchParamsParseError`, message
+  `typed-router: search params for "<path>" failed validation.`, with `.cause` holding the Zod
+  error or the Standard Schema issue array.
+- `'default'` drops the offending fields and re-validates what remains, falling back to the
+  schema's own defaults. `{ sort: 'nonsense', page: '5' }` yields `{ page: 5 }`.
+- `'raw'` skips whole-object validation and returns the coerced values as-is.
+
+```ts
+import { SearchParamsParseError } from '@hyeonqyu/typed-router-next';
+
+try {
+  return routes.parseSearchParams('/products', new URLSearchParams(search));
+} catch (error) {
+  if (error instanceof SearchParamsParseError) {
+    console.warn(error.message, error.cause);
+    return routes.parseSearchParams('/products', {});
+  }
+  throw error;
+}
+```
+
+Two caveats. **A route with no schema types as `never`** on the read side, so property access
+compiles clean and then hands you raw, uncoerced strings at runtime — only call
+`parseSearchParams` / `useTypedSearchParams` for routes that declare a schema. And **async
+validators are unsupported**: a Standard Schema `validate` returning a Promise throws
+`typed-router: asynchronous schema validation is not supported for search params.`
+
+---
+
+## 7. Reading a live URL back
+
+`routes.match(url)` resolves a real URL to its declared route. It strips `?` and `#`, decodes
+segments, and scores static (3) over dynamic (2) over catch-all (1).
+
+```ts
+const matched = routes.match('/products/42/reviews?star=5#top');
+// { path: '/products/[id]/reviews', params: { id: '42' }, node, metadata } | null
+
+if (matched?.path === '/products/[id]') {
+  const id: string = matched.params.id as string;
+}
+```
+
+Matching is inherently a runtime operation, so the result is **not** narrowed: `RouteMatch['path']`
+is a plain `string` and `params` is `Record<string, string | string[]>`. Narrow it yourself, and
+remember dynamic params come back as decoded strings while catch-all params come back as arrays.
+
+```ts
+routes.paths;                        // readonly AppPathname[] — every navigable pathname
+routes.routes;                       // the declared tree, structurally frozen
+routes.collected;                    // [{ path, segments, node, metadata }, …] — adapter-level
+routes.getNode('/products/[id]');    // the tree node, literal types preserved
+routes.getMetadata('/products');     // the _metadata block, typed per node
+routes.$types;                       // type-only carrier; {} at runtime
+```
+
+`routes.paths` is what a generated nav, a sitemap or an exhaustive test should iterate — never a
+hand-written array of strings. Only the tree *structure* is frozen; `_metadata` contents (schemas,
+elements, functions) are left alone deliberately. Adding or removing routes at runtime silently
+no-ops in sloppy mode and throws in strict mode.
+
+---
+
+## 8. Next.js App Router
+
+`@hyeonqyu/typed-router-next`. Keys mirror `src/app/` one for one, so `home/`, `products/`,
+`products/[id]/` and `(account)/profile/` stay exactly as Next expects. `routes` renders nothing;
+it only describes the shape you already have.
+
+### 8.1 The routes module is server-safe
+
+Do **not** put `'use client'` in `routes.ts`. The client-only implementations live behind their own
+`'use client'` boundary inside the package, so importing `routes` from a server component is safe;
+marking the module as client would drag the whole tree and its Zod schemas into the client bundle.
+Put `'use client'` on the component files that call the hooks or render `TypedLink`.
+
+```ts
+// routes.ts — no 'use client'
+export const routes = defineRoutes({ /* the tree from §2 */ });
+export const { TypedLink, useCurrentRoute, useCurrentRouteNode,
+               useTypedParams, useTypedPathname, useTypedRouter, useTypedSearchParams } = routes;
+export type AppPathname = typeof routes.$types.pathname;
+```
+
+### 8.2 Server components — the data half
+
+`buildHref`, `match`, `paths`, `getNode`, `getMetadata` and `parseSearchParams` all work on the
+server.
+
+```tsx
+import { redirect } from 'next/navigation';
+import { resolveMetadata } from '@hyeonqyu/typed-router-next';
+import { routes } from './routes';
+
+export default function Index() {
+  redirect(routes.buildHref('/home'));
+}
+
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const meta = resolveMetadata(routes.getMetadata('/products/[id]'), {});
+  return {
+    title: meta?.title,
+    alternates: { canonical: routes.buildHref('/products/[id]', { params: { id } }) },
+  };
+}
+
+export function sitemap() {
+  return routes.paths.map((path) => ({ url: path }));
+}
+```
+
+**The Next-15-specific trap:** server `params` and `searchParams` are Promises, and Next types the
+search values as possibly `undefined` while `RawSearchParams` is `Record<string, string | string[]>`.
+Await, then strip the `undefined`s:
+
+```tsx
+export default async function ProductsPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const raw = await searchParams;
+  const clean: Record<string, string | string[]> = Object.fromEntries(
+    Object.entries(raw).filter((entry): entry is [string, string | string[]] => entry[1] !== undefined),
+  );
+
+  const query = routes.parseSearchParams('/products', clean, { onError: 'default' });
+  const nextPage = routes.buildHref('/products', { searchParams: { ...query, page: query.page + 1 } });
+  return <a href={nextPage}>Next page</a>;
+}
+```
+
+### 8.3 Navigate and link
+
+```tsx
+'use client';
+import { TypedLink, useTypedRouter } from './routes';
+
+function Actions() {
+  const router = useTypedRouter();
+  router.push('/home');
+  router.push('/products/[id]', { params: { id: 42 }, scroll: false }); // Next's `scroll` sits alongside
+  router.replace('/products', { searchParams: { sort: 'price-asc', page: 2 } });
+  router.prefetch('/products/[id]/reviews', { params: { id: 42 }, searchParams: { star: 5 } });
+  router.back();
+  router.forward();
+  router.refresh();
+}
+
+<TypedLink href="/home">Home</TypedLink>
+<TypedLink href="/products/[id]" params={{ id: 42 }} prefetch={false} className="link">Detail</TypedLink>
+<TypedLink href="/products" searchParams={{ sort: 'price-asc', page: 2 }} hash="top">Sorted</TypedLink>
+<TypedLink href="/docs/[...slug]" params={{ slug: ['guide', 'intro'] }}>Docs</TypedLink>
+```
+
+`push` / `replace` / `prefetch` take exactly the `params` and `searchParams` the tree declares for
+that pathname, plus Next's `scroll` option (ignored by `prefetch`). The `TypedRouter` type is not
+re-exported — name it as `ReturnType<typeof routes.useTypedRouter>` if you must.
+
+`TypedLink` wraps `next/link`. `href`, `params`, `searchParams` and `hash` are flat sibling props;
+every other `next/link` prop (`className`, `prefetch`, `scroll`, …) is forwarded untouched. It is
+`href`, never React Router's `to`, and never an object like 1.x's `{ pathname, searchParams }`.
+
+### 8.4 Read the current route
+
+```tsx
+'use client';
+function ProductDetail() {
+  const { id } = useTypedParams('/products/[id]');    // { id: string }
+  const { slug } = useTypedParams('/docs/[...slug]'); // { slug: string[] } — declared name, not '*'
+  const { pathname, url, node, metadata, params } = useCurrentRoute();
+  // on /products/42 → pathname: '/products/[id]' (declared), url: '/products/42' (live)
+  const declared = useTypedPathname();       // '/products/[id]' | null
+  const currentNode = useCurrentRouteNode(); // the tree node, or null
+}
+```
+
+`useTypedPathname()` returns the **declared pattern**, not the live URL — string-comparing it
+against a real URL silently never matches. `useCurrentRoute().metadata` is the loose
+`Record<string, unknown>`; for precisely typed fields use `routes.getMetadata(path)`.
+
+The pathname passed to `useTypedParams` is a **type key only** — never read at runtime, so passing
+the wrong one gives you the current route's params under the wrong type, with no error. Pass the
+pathname the component is actually rendered on. Likewise `useCurrentRouteNode` takes no runtime
+argument; its generic only narrows the return type.
+
+### 8.5 Search params and the Suspense rule
+
+`useTypedSearchParams` builds on Next's `useSearchParams`, which opts a page out of static
+prerendering. Next requires a `<Suspense>` boundary around any component that calls it — skip the
+split and the build fails with a CSR-bailout error.
+
+```tsx
+'use client';
+import { Suspense } from 'react';
+
+export default function ProductsPage() {
+  return <Suspense fallback={null}><ProductsView /></Suspense>;
+}
+
+function ProductsView() {
+  const query = useTypedSearchParams('/products', { onError: 'default' });
+  query.page;    // number — ?page=2 really is 2 at runtime
+  query.sort;    // 'price-asc' | 'price-desc' | 'name' | undefined
+  query.inStock; // boolean | undefined — ?inStock=true really is true
+}
+```
+
+`useTypedParams` and `useCurrentRoute` build on `usePathname` and need no boundary.
+
+---
+
+## 9. React Router 6/7
+
+`@hyeonqyu/typed-router-react`. Same tree shape, plus the one thing React Router actually needs: an
+element to render. The node's own page goes on `_metadata.element`; a wrapper goes on
+`_metadata.layout`.
+
+```tsx
+// routes.tsx
+export const routes = defineRoutes({
+  home: { _metadata: { title: 'Home', element: <HomePage /> } },
+  products: {
+    _metadata: {
+      title: 'Products',
+      element: <ProductsPage />,
+      searchParamsSchema: z.object({
+        sort: z.enum(['price-asc', 'price-desc', 'name']).optional(),
+        page: z.number().default(1),
+      }),
+    },
+    '[id]': {
+      _metadata: { title: 'Product detail', element: <ProductDetailPage /> },
+      reviews: { _metadata: { title: 'Reviews', element: <ReviewsPage /> } },
+    },
+  },
+  docs: { '[...slug]': { _metadata: { title: 'Docs', element: <DocsPage /> } } },
+  // A route group becomes a pathless layout route: /profile and /orders share
+  // AccountLayout without `(account)` ever appearing in the URL.
+  '(account)': {
+    _metadata: { layout: <AccountLayout /> },
+    profile: { _metadata: { title: 'Profile', element: <ProfilePage /> } },
+    orders: { _metadata: { title: 'Orders', element: <OrdersPage /> } },
+  },
+});
+
+export const { TypedLink, useCurrentRoute, useCurrentRouteNode,
+               useTypedParams, useTypedPathname, useTypedRouter, useTypedSearchParams } = routes;
+```
+
+### 9.1 Generate the router — the headline feature
+
+`toRouteObjects()` builds React Router's `RouteObject[]` from the same tree. Hand-writing `<Route>`
+elements or a `createBrowserRouter([...])` array beside the tree is exactly the parallel route list
+this library exists to eliminate.
+
+```tsx
+import { createBrowserRouter, Navigate, RouterProvider } from 'react-router-dom';
+import { routes } from './routes';
+
+const router = createBrowserRouter(routes.toRouteObjects());
+export default function App() { return <RouterProvider router={router} />; }
+```
+
+The result is ordinary data, so generating it costs you no control — nest it under your own shell,
+add routes the tree knows nothing about, or filter it by feature flag:
+
+```tsx
+const router = createBrowserRouter([
+  {
+    element: <RootLayout />,
+    errorElement: <ErrorPage />,
+    children: [
+      { index: true, element: <Navigate to="/home" replace /> },
+      ...routes.toRouteObjects(),
+      { path: '*', element: <NotFound /> },
+    ],
+  },
+]);
+```
+
+`toRouteObjects()` rebuilds a fresh array on every call, so call it once and store the result before
+handing it to `createBrowserRouter`. Inside an existing `<BrowserRouter>`, `<routes.TypedRoutes />`
+is a thin wrapper rendering `useRoutes(routes.toRouteObjects())`.
+
+Every React Router field on `_metadata` is forwarded untouched:
+
+| in `_metadata` | becomes |
+| --- | --- |
+| `element` / `Component` / `lazy` | this node's page. If the node has children, it moves into an `index` route so it still renders at the exact path |
+| `layout` | wraps the node's children through `<Outlet />`. On a childless node it stands in for `element` |
+| `loader` / `action` / `shouldRevalidate` / `handle` / `middleware` | forwarded to this node's page |
+| `errorElement` / `ErrorBoundary` / `HydrateFallback` / `hydrateFallbackElement` / `caseSensitive` / `id` | forwarded to this node's route, not its page |
+| `[id]` key | `path: ':id'` |
+| `[...slug]` / `[[...slug]]` key | `path: '*'` — params still report `slug`, not `*` |
+| `(group)` key | a pathless layout route |
+
+Confusing `element` with `layout` on a node that has children produces a route that renders nothing
+at its own path — `element` is the page, `layout` is the wrapper.
+
+### 9.2 Navigate and link
+
+```tsx
+function Actions() {
+  const router = useTypedRouter();
+  router.push('/home');
+  router.push('/products/[id]', { params: { id: 42 } });
+  router.push('/products/[id]/reviews', { params: { id: 42 }, hash: 'top' });
+  router.push('/docs/[...slug]', { params: { slug: ['guide', 'intro'] } });
+  router.replace('/products', { searchParams: { sort: 'price-asc', page: 2 }, state: { from: 'nav' } });
+  router.back();
+  router.forward();
+  router.refresh(); // navigate(0) — re-runs loaders in a data router
+}
+
+<TypedLink href="/products/[id]" params={{ id: 42 }} className="link">Detail</TypedLink>
+<TypedLink href="/products" searchParams={{ sort: 'price-asc', page: 2 }} hash="top" replace>Sorted</TypedLink>
+```
+
+React Router's navigate options (`state`, `preventScrollReset`, `flushSync`, `viewTransition`) sit
+flat in the same argument object; `replace` and `relative` are derived by the library.
+
+`TypedLink` takes **`href`**, not `to` — `to` is deliberately removed from the props type so the
+same markup compiles against the Next.js adapter unchanged. Every other `Link` prop passes through.
+
+`router.prefetch(...)` exists with the identical typed signature but is a **no-op** here: React
+Router's library mode has no client-side prefetching. It is present purely so navigation code ports
+between adapters. Do not build a perceived-performance story on it.
+
+### 9.3 Read the current route, and use outside components
+
+```tsx
+function ProductDetail() {
+  const { id } = useTypedParams('/products/[id]');   // { id: string }
+  const { slug } = useTypedParams('/docs/[...slug]'); // { slug: string[] }
+  const query = useTypedSearchParams('/products', { onError: 'default' });
+  query.page; // number
+  const { pathname, url, node, metadata } = useCurrentRoute();
+  // on /products/42 → pathname: '/products/[id]', url: '/products/42'
+}
+
+// Loaders and actions cannot call hooks — use the methods on the same object.
+export function productsLoader({ request }: { request: Request }) {
+  const query = routes.parseSearchParams('/products', new URL(request.url).searchParams);
+  return fetch(routes.buildHref('/products', { searchParams: { page: query.page } }));
+}
+```
+
+Use `useTypedParams`, **not** React Router's `useParams()`. Because `[...slug]` compiles down to
+React Router's `*`, `useParams()` hands you an anonymous `'*'` key; `useTypedParams` reads from
+`routes.match(url)` instead, so the declared name survives. No Suspense boundary and no
+client/server split here — `useTypedSearchParams` reads `useLocation().search` directly.
+
+---
+
+## 10. Framework-free use
+
+The tree is plain data, so `@hyeonqyu/typed-router-core` gives the same declaration with no React
+and no router — for scripts, servers, tests or a sitemap generator. `createRouteTree` is the
+framework-agnostic half of `defineRoutes` (everything except `$types`); adapters wrap it and attach
+their own hooks. Standalone, untyped helpers exist for when you hold a bare tree object rather than
+a `defineRoutes` result:
+
+```ts
+import {
+  buildHref, collectRoutes, matchRoute, parseSearchParams,
+  collectRawSearchParams, toSearchParamsString,
+  parseSegment, splitPath, isRouteGroup, METADATA_KEY,
+} from '@hyeonqyu/typed-router-core';
+
+buildHref('/products/[id]', { params: { id: 7 }, searchParams: { page: 2 } }); // untyped path
+const collected = collectRoutes(routes.routes);
+matchRoute(collected, '/products/7');
+parseSearchParams(z.object({ page: z.number() }), { page: '4' });  // schema first, untyped return
+collectRawSearchParams(new URLSearchParams('tag=a&tag=b'));        // { tag: ['a', 'b'] }
+toSearchParamsString({ page: 2, tags: ['a', 'b'] });               // '?page=2&tags=a&tags=b'
+splitPath('/products/[id]').map(parseSegment);
+isRouteGroup('(account)');                                          // true
+METADATA_KEY;                                                       // '_metadata'
+```
+
+Prefer the methods on `routes` in application code — the standalone versions accept any string and
+give up the type checking that is the whole point.
+
+---
+
+## 11. Mistakes to avoid
+
+Roughly in order of how often they occur.
+
+1. **Hand-writing a URL.** `'/products/42'`, `` `/products/${id}` ``, or a `PATHS` constants file.
+   Use `buildHref` / `push` / `TypedLink` with the declared pattern.
+2. **Putting path params in `searchParams`.** The 1.x shape. `params` fills the pathname,
+   `searchParams` fills the query string.
+3. **Assuming any nested key is navigable.** Only nodes with `_metadata` are destinations; add
+   `_metadata: {}` to promote an organisational node.
+4. **Inventing a provider or generics.** No `<AppRoutesProvider>`, no `useAppRoutes()`, no
+   `defineRoutes<Meta>({...})`. The only curried form is `defineRoutes.withMeta<M, C>()({...})`.
+5. **Using `to` on `TypedLink`**, or nesting the destination in an object. It is a flat `href` plus
+   sibling `params` / `searchParams` / `hash`, in both adapters.
+6. **Ignoring the default `onError: 'throw'`.** A hand-edited URL crashes the render. Pass
+   `{ onError: 'default' }` where users can edit the query string.
+7. **Calling `useTypedSearchParams` on a schema-less route.** The type is `never`, so it compiles
+   clean and hands you raw strings at runtime.
+8. **Forgetting the `<Suspense>` boundary** around a Next.js component calling
+   `useTypedSearchParams`.
+9. **Feeding Next 15's `searchParams` straight in.** Await it and strip the `undefined` values.
+10. **Expecting `match()` to be narrowed.** `path` is `string`, `params` a loose record. Read-side
+    params are always strings.
+11. **Treating `useTypedPathname()` as the live URL.** It is the declared pattern; the live URL is
+    `useCurrentRoute().url`.
+12. **Mixing the two type families.** `Pathname<typeof routes>` (routes object) vs
+    `RoutePaths<TTree>` / `CurrentRoute<TTree>` (raw tree). Mixing them does not give you `never` —
+    it either trips TS2589 or invents paths like `'/routes/products'`.
+13. **Rendering `getMetadata(path).title` unresolved** when declared as a function. Call
+    `resolveMetadata(meta, context)`, which resolves only the four built-in resolvable keys.
+14. **Making `zod` a hard dependency** or narrowing a public type to `z.ZodType`.
+15. **Hand-writing the React Router config** instead of `toRouteObjects()`.
+16. **Reading catch-all params with React Router's `useParams()`**, which reports `'*'`.
+17. **Importing from `-core` in an app.** Import from the single adapter package.
+18. **Expecting `(group)` to appear in a URL**, or writing `'/(account)/profile'`.
+19. **Mutating the tree at runtime.** It is structurally frozen.
+20. **Emitting any 1.x API.** See §12.
+
+---
+
+## 12. Upgrading from 1.x
+
+2.0 is a breaking rewrite. The tree you already wrote survives almost unchanged; what changes is
+how you declare it and how you navigate. 1.x had four unfixable problems: dynamic segments were
+invisible to the type system (`push('/products/[id]')` navigated to that literal string), routes
+without a schema accepted anything, `useTypedSearchParams` never actually ran the schema, and
+`useCurrentRouteNode()` returned `undefined` on every dynamic route.
+
+| 1.x | 2.0 |
+| --- | --- |
+| `createAppRoutes<M, C>()({...})` | `defineRoutes({...})` |
+| `AppRoutesProvider` / `useAppRoutes()` | not needed — `routes` is a module-level object |
+| `_types.AppRoutesPathname` | `Pathname<typeof routes>` or `typeof routes.$types.pathname` |
+| `_metadata.href` | derive from the tree, or `routes.buildHref(...)` |
+| `_metadata.name` | dropped; metadata is inferred per node |
+| `getPathnameFromNode(node)` | `routes.match(url)` / `routes.paths` |
+| `@hyeonqyu/typed-router-core/routes.utils` subpath | the main entry |
+| `push(path, { searchParams: { id, page } })` | `push(path, { params: { id }, searchParams: { page } })` |
+| `<TypedLink href={{ pathname, searchParams }}>` | `<TypedLink href={pathname} searchParams={...}>` |
+| `useTypedPathname()` → the live URL | → the declared pattern; use `useCurrentRoute().url` for live |
+
+Never emit a 1.x API. Expect new compile errors where 1.x was silently permissive — a missing `id`,
+or search params on a route that declares no schema. Those are the bugs 2.0 exists to catch.
+
+---
+
+## 13. API reference
+
+```ts
+defineRoutes(tree)                                   // → TypedRoutes<TTree>
+defineRoutes.withMeta<TMetadata, TContext>()(tree)   // → TypedRoutes<TTree>, shared contract
+```
+
+On the returned `routes` object, in **every** package:
+
+| member | signature | notes |
+| --- | --- | --- |
+| `routes` | `TTree` | the declared tree, structurally frozen |
+| `paths` | `readonly RoutePaths<TTree>[]` | every navigable pathname |
+| `collected` | `readonly CollectedRoute[]` | `{ path, segments, node, metadata }` |
+| `getNode(path)` | `GetRouteNode<TTree, TPath>` | `undefined` at runtime for an unknown path |
+| `getMetadata(path)` | `GetRouteMetadata<TTree, TPath>` | literal types preserved; not resolved |
+| `match(url)` | `RouteMatch \| null` | loose `path: string`, `params: Record<string, string \| string[]>` |
+| `buildHref(path, args?)` | `string` | `args` omittable when the route needs nothing |
+| `parseSearchParams(path, raw, options?)` | schema **output** type | `raw`: record, `URLSearchParams`, or entries iterable |
+| `$types` | `{ tree; pathname }` | type-only carrier; `{}` at runtime |
+
+**On `-next` and `-react` additionally:** `TypedLink`, `useTypedRouter` (`push` / `replace` /
+`prefetch` / `back` / `forward` / `refresh`), `useCurrentRoute`, `useCurrentRouteNode`,
+`useTypedParams`, `useTypedPathname`, `useTypedSearchParams` — all client-only. `-react` adds
+`toRouteObjects()` and `<TypedRoutes />`, and its `prefetch` is a no-op while `refresh` is
+`navigate(0)`.
+
+**Exported functions:** re-exported by **every** package — `buildHref`, `matchRoute`,
+`collectRoutes`, `parseSearchParams`, `toSearchParamsString`, `resolveMetadata`,
+`resolveMetadataValue`, `isRouteGroup`, `METADATA_KEY`, `SearchParamsParseError`. **Core only**
+(not re-exported by the adapters) — `createRouteTree`, `collectRawSearchParams`, `parseSegment`,
+`splitPath`. **React only** — `toRouteObjects`, `toReactRouterSegment`.
+
+**Exported types:** `Pathname`, `SearchParams`, `RouteNodeOf`, `RouteMetadataOf`, `RouteArgs`,
+`PathParams`, `PathParamsOutput`, `RouteMatch`, `RoutePaths`, `RouteMetadata`, `BuiltinMetadata`,
+`MetadataValue`, `AnySchema`, `SearchParamsErrorMode`, `CurrentRoute<TTree>`, `TypedRoutes<TTree>`,
+`TypedLinkProps`, `NavigateArgs`, `NavigateArgsTuple`, `NavigateOptions`.
+
+The adapters re-export only a **subset** of core: `RawSearchParams`, `ParseSearchParamsOptions`,
+`BuildHrefArgs`, `CollectedRoute`, `GetRouteNode`, `RouteArgsTuple`, `SearchParamsInput` /
+`SearchParamsOutput`, `RouteTreeInput` and `-next`'s `TypedRouter` are **not** among them — import
+those from core, or use `ReturnType<typeof routes.useTypedRouter>`.
+
+---
+
+## 14. Runnable examples
+
+Two apps in the repository declare the *same* tree, and their `Nav.tsx` and `RouteInspector.tsx`
+are identical line for line apart from the Next copies' `'use client'` directive and their header
+comments — proof that the API is identical across adapters. Every page prints
+what the library resolved for the live URL with the runtime `typeof` beside it, so the type claims
+are visible rather than asserted. Run `yarn workspace next-example dev` (:3000) or
+`yarn workspace react-example dev` (:5173).
+
+- `examples/next-example/src/routes.ts` — the Next.js declaration
+- `examples/react-example/src/routes.tsx` — the React Router declaration, `element` per node
+- `examples/react-example/src/App.tsx` — `toRouteObjects()` nested under a hand-written shell, with
+  an index redirect and a `*` catch-all the tree knows nothing about

@@ -1,0 +1,21 @@
+{
+  "$schema": "https://context7.com/schema/context7.json",
+  "projectTitle": "typed-router",
+  "description": "Declare your route tree once — get type-safe pathnames, path params, search params and navigation for Next.js App Router and React Router, checked by the TypeScript compiler.",
+  "branch": "develop",
+  "excludeFolders": ["node_modules", "dist", ".next", ".doccheck", ".turbo"],
+  "rules": [
+    "The object returned by defineRoutes() is the source of truth for the application's information architecture — its pathnames, params, search-param types and metadata. Derive every pathname from it. Never hand-write a URL string such as '/products/123' — call routes.buildHref('/products/[id]', { params: { id: 123 } }) or pass the declared pattern to a typed navigation API.",
+    "Know which side owns route existence, because it differs by adapter. With @hyeonqyu/typed-router-react, toRouteObjects() builds the router configuration from the tree, so a route cannot exist without being declared there. With @hyeonqyu/typed-router-next, the src/app directory decides which routes exist and the tree mirrors it by hand — nothing checks that the two agree, so a pathname deleted from app/ still type-checks and will 404 at runtime, and a page added to app/ without a tree entry is live but absent from routes.paths. State it as: the tree is authoritative for types and metadata, app/ is authoritative for route existence.",
+    "A node becomes a navigable destination only when it carries a _metadata block. A node without _metadata still namespaces its children but is not a route; add `_metadata: {}` to make such a node navigable.",
+    "Segment keys mirror Next.js: 'products' is a static segment, '[id]' a required dynamic segment, '[...slug]' a required catch-all, '[[...path]]' an optional catch-all, and '(group)' a route group that organises the tree without contributing a URL segment.",
+    "Path params and search params are separate arguments. Write router.push('/products/[id]', { params: { id: 42 }, searchParams: { page: 2 } }). The `params` object is required whenever the path pattern has dynamic segments.",
+    "Import everything from a single adapter package — @hyeonqyu/typed-router-next for the Next.js App Router, or @hyeonqyu/typed-router-react for React Router 6/7. The adapters re-export the core surface, so never add @hyeonqyu/typed-router-core to an application's dependencies.",
+    "There are no generics, no currying and no provider component. Call defineRoutes({ ... }) once at module scope, then destructure the hooks and components off the result: export const { TypedLink, useTypedRouter, useTypedSearchParams, useTypedParams } = routes;",
+    "TypedLink takes a flat `href` prop in both adapters, with search params passed as a separate `searchParams` prop. Never use React Router's `to` prop, and never pass an object of the form { pathname, searchParams } as `href`.",
+    "zod is an optional peer dependency. Only routes that declare a searchParamsSchema need a validator, and schemas are matched structurally — Zod v3, Zod v4 and any Standard Schema validator all work.",
+    "Search-param schemas are executed at runtime, so an invalid URL throws by default. When users may hand-edit URLs, soften it with useTypedSearchParams('/search', { onError: 'default' }) to drop bad fields and keep the rest.",
+    "For React Router, prefer routes.toRouteObjects() to generate the router configuration from the same tree rather than hand-writing <Route> elements, so the tree stays the only place routes are declared.",
+    "This library is at version 2.x. The 1.x API — createAppRoutes, AppRoutesProvider, useAppRoutes, _metadata.href, getPathnameFromNode and the /routes.utils subpath — was removed in 2.0 and must never be emitted."
+  ]
+}
