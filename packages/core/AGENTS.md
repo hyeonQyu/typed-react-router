@@ -1,10 +1,17 @@
 # @hyeonqyu/typed-router-core — agent guide
 
-**Mental model:** the route tree object is the single source of truth for the application's information
-architecture. You declare the whole IA once as a nested object literal; pathnames, path params,
-search-param types, route metadata and navigation are all *derived* from that one declaration and
-checked by the compiler. This is not a path-constant generator — if you hand-write a URL string or keep
+**Mental model:** the route tree object is the source of truth for the application's information
+architecture — its pathnames, path params, search-param types, route metadata and navigation are all
+*derived* from that one declaration and checked by the compiler. You declare the whole IA once as a
+nested object literal. This is not a path-constant generator — if you hand-write a URL string or keep
 a parallel `PATHS` list anywhere, you have defeated the entire point of the library.
+
+Whether the tree also decides which routes *exist* depends on the adapter, and the core package alone
+cannot answer it. Under `@hyeonqyu/typed-router-react`, `toRouteObjects()` builds the router from the
+tree, so nothing can exist outside it. Under `@hyeonqyu/typed-router-next`, the `app/` directory
+decides route existence and the tree mirrors it by hand, with no check that the two agree. The core
+package never touches the filesystem, so it derives types and metadata from what you declared and
+makes no claim about what is actually routable.
 
 ## Most apps should install an adapter, not this package
 

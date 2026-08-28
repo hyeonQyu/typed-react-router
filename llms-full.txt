@@ -18,13 +18,24 @@ renamed still has dangling links pointing at the old path. typed-router turns th
 single typed object from which pathnames, path params, search-param types, navigation, metadata
 and — for React Router — the router configuration itself are all derived.
 
-**The mental model matters more than the API.** The route tree object is the single source of truth
-(SSOT) for the application's information architecture: *the map of the app*, not a place to keep URL
-strings. This is not a path-constant generator or a string-builder helper. Two consequences, and
-they are the mistakes AI tools make most often — never hand-write a URL (`'/products/42'`,
+**The mental model matters more than the API.** The route tree object is the source of truth for the
+application's information architecture: *the map of the app*, not a place to keep URL strings. This
+is not a path-constant generator or a string-builder helper. Two consequences, and they are the
+mistakes AI tools make most often — never hand-write a URL (`'/products/42'`,
 `` `/products/${id}` ``), and never keep a parallel route list (a `PATHS` file, a hand-written
 `<Route>` config, a nav array of literals). Both re-introduce the second, unchecked source of truth
 the library exists to eliminate, and both survive a segment rename silently.
+
+**Scope of that claim, stated precisely.** The tree is authoritative for pathname *types*, params,
+search-param types and metadata. Whether it also decides which routes *exist* depends on the adapter:
+
+- **React Router** — `toRouteObjects()` builds the router configuration from the tree, so a route
+  cannot exist without being declared in it. The claim holds without qualification.
+- **Next.js App Router** — the `src/app/` directory decides which routes exist; the tree mirrors it
+  by hand. Nothing checks that the two agree. Delete a page from `app/` and the tree still
+  type-checks its pathname, so a `TypedLink` to it compiles cleanly and 404s at runtime; add a page
+  to `app/` without declaring it and the route is live but missing from `routes.paths`. Say it as:
+  **the tree is authoritative for types and metadata, `app/` is authoritative for route existence.**
 
 | package | for |
 | --- | --- |
