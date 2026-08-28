@@ -26,3 +26,6 @@ dist
 .next
 *.tsbuildinfo
 .claude
+
+# Local-only working notes (never committed)
+.notes
