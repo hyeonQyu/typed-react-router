@@ -97,6 +97,30 @@ is fully static. `searchParams` is typed from the schema's *input*, so `.default
 and follows the same three-way rule against the schema: required if the schema has a required field,
 optional if every field is optional, forbidden when the route declares no schema.
 
+**How values reach the URL.** A path segment carries text only — a `string`, `number`, `boolean`,
+`bigint` or `Date` (ISO). Search params are encoded by what can be read back:
+
+| written value | query string | read back as |
+| --- | --- | --- |
+| `string` / `number` / `boolean` / `bigint` | its plain text form | whatever the field's schema accepts |
+| `Date` | ISO 8601 | a `string` — declare the field `z.coerce.date()` to get a `Date` |
+| `['a', 'b']` — flat array | `?k=a&k=b`, one entry per item | the array, unchanged |
+| `{ min: 1, max: 9 }` — object | JSON, URL-encoded | the object |
+| `[[1, 2], [3]]` — nested array | JSON per item | the nested array |
+
+Objects and nested arrays round-trip: `parseSearchParams` reads back what `buildHref` wrote. Flat
+arrays of primitives are unaffected, and a raw string is still the first reading tried, so a
+`z.string()` field holding `'{"a":1}'` keeps it as a string.
+
+A value may declare its own text form: an own `toJSON` drives the JSON encoding, and an overridden
+`toString` is taken as the text the author meant, so value objects and boxed primitives serialise as
+they always have. The inherited `Object.prototype.toString` is not a declaration.
+
+Anything with no faithful text form — `NaN`, `Infinity`, a symbol, a function, an invalid `Date`, a
+`Map`/`Set`, a cyclic object — **throws** (`... cannot be serialised (...)`) instead of writing
+`[object Object]` into the URL. Declare `Date` fields as `z.coerce.date()`; a plain `z.date()`
+cannot read back the ISO string `buildHref` writes.
+
 **Match a live URL back to a declared route.**
 
 ```ts
@@ -258,7 +282,7 @@ your navigation functions inherit the same required/optional/forbidden argument 
 | `collectRoutes` | `(tree, basePath?) => CollectedRoute[]` | Lists navigable routes from a raw tree, skipping `(group)` keys. |
 | `parseSearchParams` | `(schema, raw, options?, path?) => Record<string, unknown>` | Standalone parser. No schema → returns a copy of `raw`. |
 | `collectRawSearchParams` | `(iterable) => RawSearchParams` | Folds `URLSearchParams`-like entries, repeated keys → arrays. |
-| `toSearchParamsString` | `(obj) => string` | `'?a=1&b=2'`. Skips `undefined`/`null`, repeats arrays, ISO-serialises `Date`. |
+| `toSearchParamsString` | `(obj, path?) => string` | `'?a=1&b=2'`. Skips `undefined`/`null`, repeats arrays, ISO-serialises `Date`, JSON-encodes objects and nested arrays, throws on anything unserialisable. |
 | `parseSegment` / `splitPath` / `isRouteGroup` | — | Segment classification helpers. |
 | `SearchParamsParseError` | `class extends Error` | Thrown under `onError: 'throw'`; `.cause` holds the validator's error. |
 | `METADATA_KEY` | `'_metadata'` | The reserved destination marker. |

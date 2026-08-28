@@ -47,11 +47,29 @@ const toBoolean = (value: string): boolean | undefined => {
 
 const isDefined = <T,>(value: T | undefined): value is T => value !== undefined;
 
-const scalarReadings = (value: string): unknown[] =>
-  [value, toNumber(value), toBoolean(value)].filter(isDefined);
+/**
+ * `buildHref` writes objects and nested arrays as JSON, so a value shaped like one
+ * gets a decoded reading too. Only `{` and `[` prefixes qualify: that covers exactly
+ * what the write path encodes, and leaves every scalar reading — including a
+ * `z.string()` field's raw string — ahead of it, untouched.
+ */
+const toJson = (value: string): unknown | undefined => {
+  const trimmed = value.trim();
+  if (trimmed[0] !== '{' && trimmed[0] !== '[') return undefined;
 
-const listReadings = (values: string[]): unknown[] =>
-  [values, values.map(toNumber), values.map(toBoolean)].filter((reading) => reading.every(isDefined));
+  try {
+    return JSON.parse(trimmed);
+  } catch {
+    return undefined;
+  }
+};
+
+const scalarReadings = (value: string): unknown[] => [value, toNumber(value), toBoolean(value), toJson(value)].filter(isDefined);
+
+const listReadings = (values: string[]): unknown[] => {
+  const readings: unknown[][] = [values, values.map(toNumber), values.map(toBoolean), values.map(toJson)];
+  return readings.filter((reading) => reading.every(isDefined));
+};
 
 /**
  * Every plausible reading of a raw URL value, ordered from most literal to most

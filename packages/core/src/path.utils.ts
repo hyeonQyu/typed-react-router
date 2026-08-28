@@ -152,9 +152,105 @@ export const matchRoute = (routes: CollectedRoute[], url: string): RouteMatch | 
   return best;
 };
 
-const serializeValue = (value: unknown): string => (value instanceof Date ? value.toISOString() : String(value));
+/** Names a value in an error message without stringifying something unstringifiable. */
+const describe = (value: unknown): string => {
+  if (typeof value === 'number') return `the number ${value}`;
+  if (typeof value === 'symbol') return 'a symbol';
+  if (typeof value === 'function') return 'a function';
+  if (typeof value === 'object' && value !== null) {
+    const name = value.constructor?.name;
+    return !name || name === 'Object' ? 'an object' : `a ${name}`;
+  }
+  return `a ${typeof value}`;
+};
 
-export const toSearchParamsString = (searchParams: Record<string, unknown> | undefined): string => {
+const isInvalidDate = (value: Date): boolean => Number.isNaN(value.getTime());
+
+/** A value whose text form is faithful: it lands in the URL as itself, not as a summary of itself. */
+const asPlainText = (value: unknown): string | undefined => {
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number') return Number.isFinite(value) ? String(value) : undefined;
+  if (typeof value === 'boolean' || typeof value === 'bigint') return String(value);
+  if (value instanceof Date) return isInvalidDate(value) ? undefined : value.toISOString();
+  return undefined;
+};
+
+/**
+ * The text form a value declares for itself. An overridden `toString` is the author
+ * saying what this value looks like as text — the same signal `toJSON` gives — so it
+ * is honoured. The inherited `Object.prototype.toString`, which only ever yields
+ * `[object Object]`, is not.
+ */
+const asDeclaredText = (value: object): string | undefined => {
+  const { toString } = value as { toString?: unknown };
+  if (typeof toString !== 'function' || toString === Object.prototype.toString) return undefined;
+
+  try {
+    const text = (value as { toString(): unknown }).toString();
+    return typeof text === 'string' ? text : undefined;
+  } catch {
+    return undefined;
+  }
+};
+
+/** A `Date` states its own text form, but the ISO one above is the reading we want. */
+const isTextBearingObject = (value: unknown): value is object => typeof value === 'object' && value !== null && !(value instanceof Date);
+
+/**
+ * Serialises a value for a URL *path segment*. A segment carries text and reads back
+ * as text, so only values with a faithful text form are accepted — anything else
+ * would land in the URL as `[object Object]` or `NaN`.
+ */
+const serializePathParam = (value: unknown, path: string, name: string): string => {
+  const text = asPlainText(value) ?? (isTextBearingObject(value) ? asDeclaredText(value) : undefined);
+  if (text !== undefined) return text;
+
+  throw new Error(
+    `typed-router: route param "${name}" for "${path}" cannot be serialised (${describe(value)}). ` +
+      'Path segments carry text — pass a string, number or boolean.',
+  );
+};
+
+const isPlainObject = (value: object): boolean => {
+  const proto = Object.getPrototypeOf(value);
+  return proto === Object.prototype || proto === null;
+};
+
+const hasToJSON = (value: object): boolean => typeof (value as { toJSON?: unknown }).toJSON === 'function';
+
+/**
+ * Serialises a value for a *search param*. Scalars keep their plain text form;
+ * objects and nested arrays are written as JSON so `parseSearchParams` can read
+ * them back as what they were; a value that declares its own text form keeps it.
+ * A value that would only survive as a summary of itself — `NaN`, a symbol, a
+ * `Map` — throws instead of corrupting the URL.
+ */
+const serializeSearchParam = (value: unknown, key: string, path: string): string => {
+  const text = asPlainText(value);
+  if (text !== undefined) return text;
+
+  if (isTextBearingObject(value)) {
+    if (Array.isArray(value) || isPlainObject(value) || hasToJSON(value)) {
+      try {
+        const json = JSON.stringify(value);
+        if (json !== undefined) return json;
+      } catch {
+        // A cycle or a bigint inside — fall through to the error below.
+      }
+    } else {
+      const declared = asDeclaredText(value);
+      if (declared !== undefined) return declared;
+    }
+  }
+
+  const where = path ? `"${key}" for "${path}"` : `"${key}"`;
+  throw new Error(
+    `typed-router: search param ${where} cannot be serialised (${describe(value)}). ` +
+      'Convert it to a string, number, boolean, or a JSON-serialisable object first.',
+  );
+};
+
+export const toSearchParamsString = (searchParams: Record<string, unknown> | undefined, path = ''): string => {
   if (!searchParams) return '';
 
   const params = new URLSearchParams();
@@ -164,12 +260,12 @@ export const toSearchParamsString = (searchParams: Record<string, unknown> | und
 
     if (Array.isArray(value)) {
       for (const item of value) {
-        if (item !== undefined && item !== null) params.append(key, serializeValue(item));
+        if (item !== undefined && item !== null) params.append(key, serializeSearchParam(item, key, path));
       }
       continue;
     }
 
-    params.append(key, serializeValue(value));
+    params.append(key, serializeSearchParam(value, key, path));
   }
 
   const queryString = params.toString();
@@ -200,7 +296,7 @@ export const buildHref = (path: string, args?: BuildHrefArgs): string => {
       if (value === undefined || value === null) {
         throw new Error(`typed-router: missing route param "${pattern.name}" for "${path}".`);
       }
-      parts.push(encodeURIComponent(serializeValue(value)));
+      parts.push(encodeURIComponent(serializePathParam(value, path, pattern.name)));
       continue;
     }
 
@@ -212,12 +308,12 @@ export const buildHref = (path: string, args?: BuildHrefArgs): string => {
     }
 
     for (const item of Array.isArray(value) ? value : [value]) {
-      parts.push(encodeURIComponent(serializeValue(item)));
+      parts.push(encodeURIComponent(serializePathParam(item, path, pattern.name)));
     }
   }
 
   const pathname = `/${parts.join('/')}`;
   const hash = args?.hash ? (args.hash.startsWith('#') ? args.hash : `#${args.hash}`) : '';
 
-  return `${pathname}${toSearchParamsString(args?.searchParams)}${hash}`;
+  return `${pathname}${toSearchParamsString(args?.searchParams, path)}${hash}`;
 };
