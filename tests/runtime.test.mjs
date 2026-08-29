@@ -169,3 +169,12 @@ test('metadata is readable and route nodes are frozen', () => {
   assert.equal(routes.getMetadata('/products/[id]/reviews').title, 'Reviews');
   assert.equal(Object.isFrozen(routes.routes.home), true);
 });
+
+test('collected keeps the runtime shape adapters rely on', () => {
+  const reviews = routes.collected.find((route) => route.path === '/products/[id]/reviews');
+  assert.equal(reviews.metadata.title, 'Reviews');
+  assert.deepEqual(
+    routes.collected.map((route) => route.path),
+    routes.paths,
+  );
+});

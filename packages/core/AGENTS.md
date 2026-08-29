@@ -123,7 +123,7 @@ Accepts a `Record<string, string | string[]>`, a `URLSearchParams`, or any itera
 
 ```ts
 routes.paths;                              // readonly ('/home' | '/products' | ...)[]
-routes.collected;                          // [{ path, segments, node, metadata }, ...] — for adapters
+routes.collected;                          // one typed entry per route — the union discriminates on `path`
 routes.routes;                             // the declared tree, structurally frozen
 routes.getNode('/products/[id]');          // the node, literal types preserved
 routes.getMetadata('/products').title;     // 'Products' — a string LITERAL, not `string`
@@ -132,7 +132,7 @@ routes.getMetadata('/products').title;     // 'Products' — a string LITERAL, n
 **Shared metadata contract + context-dependent values.**
 
 ```ts
-import { defineRoutes, resolveMetadata, resolveMetadataValue } from '@hyeonqyu/typed-router-core';
+import { defineRoutes, resolveMetadata, resolveMetadataValue, type BuiltinMetadata } from '@hyeonqyu/typed-router-core';
 
 type Ctx = { isAdmin: boolean; locale: 'en' | 'ko' };
 type Meta = { icon: string }; // ONLY your own fields; the built-ins are added automatically
@@ -150,9 +150,14 @@ const meta = adminRoutes.getMetadata('/dashboard/settings');
 resolveMetadataValue(meta.accessible, ctx); // boolean | undefined  ← use this to READ one field
 
 // Build a nav from the tree — no route is named twice anywhere in the app.
+// Each `collected` entry keeps its route's declared metadata type, so a field only
+// some routes declare must be narrowed (or widened to the shared contract) to read:
 const nav = adminRoutes.collected
-  .map((route) => ({ href: route.path, meta: resolveMetadata(route.metadata, ctx) }))
-  .filter((entry) => entry.meta?.accessible !== false);
+  .map((route) => {
+    const meta: (Meta & BuiltinMetadata<Ctx>) | undefined = resolveMetadata(route.metadata, ctx);
+    return { href: route.path, icon: meta?.icon, accessible: resolveMetadataValue(meta?.accessible, ctx) };
+  })
+  .filter((entry) => entry.accessible !== false);
 ```
 
 `resolveMetadata` resolves only `title`, `label`, `description`, `accessible`. Your own function fields
@@ -243,7 +248,7 @@ your navigation functions inherit the same required/optional/forbidden argument 
 | `defineRoutes.withMeta` | `<TMetadata, TContext>() => (tree) => TypedRoutes<TTree>` | Same, constraining **top-level** `_metadata` blocks to `TMetadata & BuiltinMetadata<TContext>`. Nested nodes are typed `unknown`, so their `_metadata` is inferred but **not** checked against `TMetadata` — verify deep metadata yourself. |
 | `routes.routes` | `TTree` | The declared tree, structurally frozen. What adapters consume. |
 | `routes.paths` | `readonly RoutePaths<TTree>[]` | Every navigable pathname at runtime. |
-| `routes.collected` | `readonly CollectedRoute[]` | `{ path, segments, node, metadata }` per route — for adapters and `matchRoute`. |
+| `routes.collected` | `readonly GetCollectedRoute<TTree>[]` | `{ path, segments, node, metadata }` per route, one union member each — `path` stays a literal and `metadata` stays typed while enumerating. |
 | `routes.getNode` | `(path) => GetRouteNode<TTree, TPath>` | The node behind a pathname, literal types preserved. |
 | `routes.getMetadata` | `(path) => GetRouteMetadata<TTree, TPath>` | The `_metadata` block, typed down to string literals. Not context-resolved. |
 | `routes.match` | `(url: string) => RouteMatch \| null` | Live URL → declared route. Static (3) beats dynamic (2) beats catch-all (1). |
@@ -264,9 +269,11 @@ your navigation functions inherit the same required/optional/forbidden argument 
 | `METADATA_KEY` | `'_metadata'` | The reserved destination marker. |
 
 **Types.** These take the **routes object** type: `Pathname<typeof routes>`,
-`SearchParams<typeof routes, '/path'>`, `RouteMetadataOf<…>`, `RouteNodeOf<…>`. These take the raw
-**tree** type (`typeof routes.$types.tree`): `RoutePaths`, `RouteArgs`, `RouteArgsTuple`,
-`SearchParamsInput`, `SearchParamsOutput`, `GetRouteNode`, `GetRouteMetadata`. These take a pathname
+`SearchParams<typeof routes, '/path'>`, `RouteMetadataOf<…>`, `RouteNodeOf<…>`,
+`CollectedRouteOf<typeof routes>` (the `collected` element union; pass a pathname to pick one
+entry). These take the raw **tree** type (`typeof routes.$types.tree`): `RoutePaths`, `RouteArgs`,
+`RouteArgsTuple`, `SearchParamsInput`, `SearchParamsOutput`, `GetRouteNode`, `GetRouteMetadata`,
+`GetCollectedRoute`. These take a pathname
 string: `PathParams<'/products/[id]'>` (write side, `string | number`) and `PathParamsOutput<…>` (read
 side, always `string`/`string[]`). Also exported: `BuiltinMetadata<TContext>`, `MetadataValue<T, C>`,
 `RouteMatch`, `CollectedRoute`, `SegmentPattern`, `RouteParams`, `BuildHrefArgs`, `RawSearchParams`,

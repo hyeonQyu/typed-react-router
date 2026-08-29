@@ -1,5 +1,6 @@
 import { createRouteTree, type RouteTree } from './createRouteTree';
 import type { GetRouteMetadata, GetRouteNode, RoutePaths } from './path.types';
+import type { GetCollectedRoute } from './path.utils';
 import type { RouteMetadata, RouteTreeInput, RouteTreeInputWithMeta, SearchParamsOutput } from './tree.types';
 
 export type TypedRoutes<TTree> = RouteTree<TTree> & {
@@ -53,3 +54,12 @@ export type RouteNodeOf<TRoutes, TPath extends string> = GetRouteNode<TreeOf<TRo
 
 /** The metadata behind one route: `RouteMetadataOf<typeof routes, '/products'>`. */
 export type RouteMetadataOf<TRoutes, TPath extends string> = GetRouteMetadata<TreeOf<TRoutes>, TPath>;
+
+/**
+ * One element of `routes.collected`: `CollectedRouteOf<typeof routes>` is the whole union,
+ * `CollectedRouteOf<typeof routes, '/products'>` picks one route's entry.
+ */
+export type CollectedRouteOf<TRoutes, TPath extends Pathname<TRoutes> = Pathname<TRoutes>> = Extract<
+  GetCollectedRoute<TreeOf<TRoutes>>,
+  { path: TPath }
+>;

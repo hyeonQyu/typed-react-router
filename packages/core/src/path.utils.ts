@@ -1,4 +1,4 @@
-import type { PathParamValue } from './path.types';
+import type { PathParamValue, RouteGroupKey, SegmentKeys } from './path.types';
 import type { RouteMetadata, RouteNodeInput } from './tree.types';
 
 export const METADATA_KEY = '_metadata';
@@ -40,6 +40,24 @@ export type CollectedRoute = {
   node: RouteNodeInput;
   metadata: RouteMetadata | undefined;
 };
+
+/**
+ * The typed counterpart of {@link CollectedRoute}: one union member per navigable
+ * route, discriminated by the literal `path`, so enumerating the tree keeps each
+ * route's declared metadata type. Mirrors the walk of {@link collectRoutes} — same
+ * traversal, same `_metadata` gate, same route-group skipping — at the type level.
+ */
+export type GetCollectedRoute<TTree> = CollectedOf<TTree, ''>;
+
+type CollectedOf<TNode, TPrefix extends string> = {
+  [K in SegmentKeys<TNode>]: K extends RouteGroupKey
+    ? CollectedOf<TNode[K], TPrefix>
+    :
+        | (TNode[K] extends { _metadata: infer TMetadata }
+            ? { path: `${TPrefix}/${K}`; segments: SegmentPattern[]; node: TNode[K]; metadata: TMetadata }
+            : never)
+        | CollectedOf<TNode[K], `${TPrefix}/${K}`>;
+}[SegmentKeys<TNode>];
 
 /**
  * Walks the tree and lists every navigable route (a node declaring `_metadata`),

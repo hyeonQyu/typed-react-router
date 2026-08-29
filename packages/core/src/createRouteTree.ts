@@ -5,7 +5,7 @@ import {
   matchRoute,
   METADATA_KEY,
   type BuildHrefArgs,
-  type CollectedRoute,
+  type GetCollectedRoute,
   type RouteMatch,
 } from './path.utils';
 import type { ParsableSchema } from './schema.types';
@@ -66,8 +66,12 @@ export type RouteTree<TTree> = {
   routes: TTree;
   /** Every navigable pathname, at runtime. */
   paths: readonly RoutePaths<TTree>[];
-  /** All navigable routes with their compiled segments — used by framework adapters. */
-  collected: readonly CollectedRoute[];
+  /**
+   * All navigable routes with their compiled segments — used by framework adapters.
+   * Each element keeps its route's literal `path` and declared metadata, so the
+   * union discriminates on `path` when you enumerate.
+   */
+  collected: readonly GetCollectedRoute<TTree>[];
 
   /** The tree node a declared pathname points at. */
   getNode: <TPath extends RoutePaths<TTree>>(path: TPath) => GetRouteNode<TTree, TPath>;
@@ -110,7 +114,7 @@ export const createRouteTree = <TTree>(tree: TTree): RouteTree<TTree> => {
   return {
     routes,
     paths,
-    collected,
+    collected: collected as unknown as RouteTree<TTree>['collected'],
     getNode,
     getMetadata,
     match: (url) => matchRoute(collected, url),

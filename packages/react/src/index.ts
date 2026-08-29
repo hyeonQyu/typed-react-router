@@ -16,6 +16,7 @@ export {
   toSearchParamsString,
   type AnySchema,
   type BuiltinMetadata,
+  type CollectedRouteOf,
   type MetadataValue,
   type Pathname,
   type PathParams,
