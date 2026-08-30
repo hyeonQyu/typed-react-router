@@ -16,7 +16,7 @@ import { z } from 'zod';
 const routes = defineRoutes({
   products: {
     _metadata: { searchParamsSchema: z.object({ page: z.number().default(1) }) },
-    '[id]': { _metadata: { title: 'Detail' } },
+    '[id]': { _metadata: { title: 'Detail', paramSchema: z.number() } },
   },
 });
 
@@ -24,9 +24,12 @@ routes.paths;                                                   // '/products' |
 routes.buildHref('/products/[id]', { params: { id: 42 } });     // '/products/42'
 routes.match('/products/42');                                   // { path: '/products/[id]', params: { id: '42' }, … }
 routes.parseSearchParams('/products', { page: '2' });           // { page: 2 }
+routes.parseParams('/products/[id]', { id: '42' });              // { id: 42 } — per the segment's schema
 ```
 
 Search params round-trip: objects and nested arrays are written as JSON and read back as themselves, and a value with no faithful text form (`NaN`, a symbol, a `Map`, a cycle) throws instead of becoming `[object Object]`. `Date` is written as ISO, so declare those fields `z.coerce.date()`.
+
+Path params get the same treatment, one segment at a time: a `paramSchema` on a `'[id]'` node types and validates that segment (its name comes from the tree key), and nested routes inherit it. A segment without one still reads back as `string`.
 
 `zod` is an optional peer dependency — schemas are matched structurally, so Zod v3, Zod v4 and any [Standard Schema](https://standardschema.dev) validator work.
 

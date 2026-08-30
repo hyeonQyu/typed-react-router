@@ -90,6 +90,8 @@ function ProductDetail() {
 }
 ```
 
+동적 세그먼트는 따로 선언하지 않으면 `string`으로 읽힙니다. 그 세그먼트의 노드에 `paramSchema`를 주면 — `'[id]': { _metadata: { title: 'Detail', paramSchema: z.number() } }` — `params.id`는 검증을 거친 `number`가 되고, `/products/abc`는 잘못된 문자열로 흘러 들어오는 대신 `PathParamsParseError`를 던집니다. 이름은 트리 키에서 오므로 스키마는 객체가 아니라 값 스키마 하나이고, 하위 라우트가 이를 상속합니다. `useTypedSearchParams`와 같은 `onError` 모드를 받습니다.
+
 트리 노드나 선언된 패턴만 필요하다면 `useCurrentRouteNode()`와 `useTypedPathname()`도 사용할 수 있습니다.
 
 ## 5. 쿼리 파라미터 읽기 — 그리고 Suspense 규칙

@@ -1,7 +1,7 @@
 import { createRouteTree, type RouteTree } from './createRouteTree';
 import type { GetRouteMetadata, GetRouteNode, RoutePaths } from './path.types';
 import type { GetCollectedRoute } from './path.utils';
-import type { RouteMetadata, RouteTreeInput, RouteTreeInputWithMeta, SearchParamsOutput } from './tree.types';
+import type { ParsedPathParams, RouteMetadata, RouteTreeInput, RouteTreeInputWithMeta, SearchParamsOutput } from './tree.types';
 
 export type TypedRoutes<TTree> = RouteTree<TTree> & {
   /** Type-only carrier, so `typeof routes.$types.pathname` works without extra imports. */
@@ -48,6 +48,9 @@ export type Pathname<TRoutes> = RoutePaths<TreeOf<TRoutes>>;
 
 /** The parsed search params of one route: `SearchParams<typeof routes, '/search'>`. */
 export type SearchParams<TRoutes, TPath extends string> = SearchParamsOutput<TreeOf<TRoutes>, TPath>;
+
+/** The parsed path params of one route: `Params<typeof routes, '/products/[id]'>`. */
+export type Params<TRoutes, TPath extends string> = ParsedPathParams<TreeOf<TRoutes>, TPath>;
 
 /** The tree node behind one route: `RouteNodeOf<typeof routes, '/products/[id]'>`. */
 export type RouteNodeOf<TRoutes, TPath extends string> = GetRouteNode<TreeOf<TRoutes>, TPath>;

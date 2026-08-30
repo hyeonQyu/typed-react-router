@@ -90,6 +90,8 @@ function ProductDetail() {
 }
 ```
 
+A dynamic segment reads back as a `string` unless it says otherwise. Give the segment's node a `paramSchema` — `'[id]': { _metadata: { title: 'Detail', paramSchema: z.number() } }` — and `params.id` is a `number`, validated, with `/products/abc` throwing `PathParamsParseError` instead of flowing in as a bad string. The name comes from the tree key, so the schema is bare rather than an object, and nested routes inherit it. It takes the same `onError` modes as `useTypedSearchParams`.
+
 `useCurrentRouteNode()` and `useTypedPathname()` are also available if you only need the tree node or the declared pattern.
 
 ## 5. Read search params — and the Suspense rule

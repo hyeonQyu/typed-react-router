@@ -162,7 +162,7 @@ tree, not the metadata); the rest are 1.x APIs removed in 2.0. The only curried 
 Everything you would otherwise hand-declare comes off the tree.
 
 ```ts
-import type { Pathname, SearchParams, RouteMetadataOf, RouteNodeOf, PathParams, PathParamsOutput }
+import type { Params, Pathname, SearchParams, RouteMetadataOf, RouteNodeOf, PathParams, PathParamsOutput }
   from '@hyeonqyu/typed-router-next';
 
 type AppPathname = typeof routes.$types.pathname;  // the union, with no extra import
@@ -173,6 +173,7 @@ type ProductsMeta = RouteMetadataOf<typeof routes, '/products'>;   // title: 'Pr
 type ProductNode = RouteNodeOf<typeof routes, '/products/[id]'>;   // has a `reviews` key
 type DocsWrite = PathParams<'/docs/[...slug]'>;        // { slug: readonly (string | number)[] }
 type DocsRead = PathParamsOutput<'/docs/[...slug]'>;   // { slug: string[] }
+type ProductParams = Params<typeof routes, '/products/[id]'>;  // the read side, tree applied
 ```
 
 Two families, and mixing them up is a common compile error. `Pathname`, `SearchParams`,
@@ -185,9 +186,12 @@ Two families, and mixing them up is a common compile error. `Pathname`, `SearchP
 pathnames such as `'/routes/products'` and `'/routes/products/[id]'`. Either way every real
 pathname then errors with a confusing message.
 
-`PathParams` is what you **write** (`string | number`, since it gets stringified);
-`PathParamsOutput` is what you **read back** (always `string` / `string[]`, all a URL can carry).
-Do not expect `params.id` to be a number on the read side.
+`PathParams` is what you **write**; `PathParamsOutput` is what you **read back**. Both take the
+pathname first and the tree second (`PathParamsOutput<'/products/[id]', typeof routes.$types.tree>`).
+Given no tree they fall back to what a segment means when it declares nothing — `string | number` to
+write, `string` / `string[]` to read — so do not expect `params.id` to be a number there. Pass the
+tree, or use `Params<typeof routes, TPath>`, and a segment declaring a `paramSchema` shows its real
+type on both sides (see §6.1).
 
 ---
 
@@ -398,6 +402,64 @@ compiles clean and then hands you raw, uncoerced strings at runtime — only cal
 validators are unsupported**: a Standard Schema `validate` returning a Promise throws
 `typed-router: asynchronous schema validation is not supported for search params.`
 
+### 6.1 Path params get the same treatment
+
+A dynamic segment reads back as a string unless it says otherwise. To type one, put a `paramSchema`
+on the node **whose key is that segment**. The name is already the key, so only the type is written:
+
+```ts
+export const routes = defineRoutes({
+  orgs: {
+    '[orgId]': {
+      _metadata: { title: 'Org', paramSchema: z.number() },
+
+      projects: {
+        _metadata: { title: 'Projects' },     // declares nothing — still inherits orgId: number
+
+        '[projectId]': {
+          _metadata: { title: 'Project', paramSchema: z.string().uuid() },
+          settings: { _metadata: { title: 'Settings' } },
+        },
+      },
+    },
+  },
+  posts: { '[slug]': { _metadata: { title: 'Post' } } },   // no schema → stays a string
+  archive: { '[...date]': { _metadata: { title: 'Archive', paramSchema: z.array(z.number()) } } },
+});
+
+useTypedParams('/orgs/[orgId]/projects/[projectId]/settings');
+// { orgId: number; projectId: string } — each segment declared once, inherited by everything below
+useTypedParams('/posts/[slug]');       // { slug: string } — unchanged
+useTypedParams('/archive/[...date]');  // { date: number[] } — a catch-all declares the whole list
+
+routes.parseParams('/orgs/[orgId]', { orgId: '42' });   // { orgId: 42 } — outside a component
+```
+
+Four things follow from that shape:
+
+- **The schema is bare, not an object.** `paramSchema: z.number()`, never
+  `paramSchema: z.object({ orgId: z.number() })` — the segment is one value, and its name is the key.
+- **Nested routes inherit.** Declaring `orgId` on `'[orgId]'` covers every route beneath it. Never
+  redeclare an ancestor's segment.
+- **Catch-alls declare the list they read back as.** `[...date]` reads as an array, so its schema is
+  `z.array(z.number())`, not `z.number()`. An optional catch-all that matched nothing is validated
+  against `undefined`, so `.optional()` leaves the key absent and `.default([])` fills it in.
+- **The write side is typed from the same declaration.** `buildHref('/orgs/[orgId]', { params: { orgId: 'abc' } })`
+  is a compile error, so a link the read side would reject cannot be built in the first place.
+
+Failure works exactly like search params, with the same three `onError` modes, and throws
+`PathParamsParseError` — whose `.param` names the segment that failed — under the default `'throw'`:
+
+```ts
+useTypedParams('/orgs/[orgId]');                         // '/orgs/abc' → PathParamsParseError
+useTypedParams('/orgs/[orgId]', { onError: 'default' }); // drop the bad segment, keep the rest
+useTypedParams('/orgs/[orgId]', { onError: 'raw' });     // no validation — 'abc' comes through
+```
+
+This is opt-in per segment: with no `paramSchema` anywhere, every path param reads back exactly as it
+always did. Note that `routes.match(url)` never validates — its `params` are always raw text. Pass
+them through `routes.parseParams(match.path, match.params)` to apply the schemas.
+
 ---
 
 ## 7. Reading a live URL back
@@ -541,7 +603,7 @@ every other `next/link` prop (`className`, `prefetch`, `scroll`, …) is forward
 ```tsx
 'use client';
 function ProductDetail() {
-  const { id } = useTypedParams('/products/[id]');    // { id: string }
+  const { id } = useTypedParams('/products/[id]');    // { id: string } — or the segment's paramSchema output
   const { slug } = useTypedParams('/docs/[...slug]'); // { slug: string[] } — declared name, not '*'
   const { pathname, url, node, metadata, params } = useCurrentRoute();
   // on /products/42 → pathname: '/products/[id]' (declared), url: '/products/42' (live)
@@ -554,10 +616,11 @@ function ProductDetail() {
 against a real URL silently never matches. `useCurrentRoute().metadata` is the loose
 `Record<string, unknown>`; for precisely typed fields use `routes.getMetadata(path)`.
 
-The pathname passed to `useTypedParams` is a **type key only** — never read at runtime, so passing
-the wrong one gives you the current route's params under the wrong type, with no error. Pass the
-pathname the component is actually rendered on. Likewise `useCurrentRouteNode` takes no runtime
-argument; its generic only narrows the return type.
+The pathname passed to `useTypedParams` does not select **which** URL is read — that is always the
+live one — but it does select the types *and* the `paramSchema`s applied to it (§6.1). Passing the
+wrong one gives you the current route's params under the wrong type, validated against the wrong
+segments, with no error. Pass the pathname the component is actually rendered on. Likewise
+`useCurrentRouteNode` takes no runtime argument; its generic only narrows the return type.
 
 ### 8.5 Search params and the Suspense rule
 
@@ -706,7 +769,7 @@ between adapters. Do not build a perceived-performance story on it.
 
 ```tsx
 function ProductDetail() {
-  const { id } = useTypedParams('/products/[id]');   // { id: string }
+  const { id } = useTypedParams('/products/[id]');   // { id: string } — or the segment's paramSchema output
   const { slug } = useTypedParams('/docs/[...slug]'); // { slug: string[] }
   const query = useTypedSearchParams('/products', { onError: 'default' });
   query.page; // number
@@ -774,15 +837,15 @@ Roughly in order of how often they occur.
    `defineRoutes<Meta>({...})`. The only curried form is `defineRoutes.withMeta<M, C>()({...})`.
 5. **Using `to` on `TypedLink`**, or nesting the destination in an object. It is a flat `href` plus
    sibling `params` / `searchParams` / `hash`, in both adapters.
-6. **Ignoring the default `onError: 'throw'`.** A hand-edited URL crashes the render. Pass
-   `{ onError: 'default' }` where users can edit the query string.
+6. **Ignoring the default `onError: 'throw'`.** A hand-edited URL crashes the render, on either half
+   of it. Pass `{ onError: 'default' }` where users can edit the query string or the path.
 7. **Calling `useTypedSearchParams` on a schema-less route.** The type is `never`, so it compiles
    clean and hands you raw strings at runtime.
 8. **Forgetting the `<Suspense>` boundary** around a Next.js component calling
    `useTypedSearchParams`.
 9. **Feeding Next 15's `searchParams` straight in.** Await it and strip the `undefined` values.
-10. **Expecting `match()` to be narrowed.** `path` is `string`, `params` a loose record. Read-side
-    params are always strings.
+10. **Expecting `match()` to be narrowed or validated.** `path` is `string`, `params` a loose record
+    of raw text — `match` runs no schema. Feed it to `routes.parseParams(match.path, match.params)`.
 11. **Treating `useTypedPathname()` as the live URL.** It is the declared pattern; the live URL is
     `useCurrentRoute().url`.
 12. **Mixing the two type families.** `Pathname<typeof routes>` (routes object) vs
@@ -796,7 +859,10 @@ Roughly in order of how often they occur.
 17. **Importing from `-core` in an app.** Import from the single adapter package.
 18. **Expecting `(group)` to appear in a URL**, or writing `'/(account)/profile'`.
 19. **Mutating the tree at runtime.** It is structurally frozen.
-20. **Emitting any 1.x API.** See §12.
+20. **Expecting a path param to be a number without declaring it.** A segment reads back as `string`
+    until it declares a `paramSchema` (§6.1) — and that schema is bare (`z.number()`), goes on the
+    `'[id]'` node itself, and is inherited rather than repeated on nested routes.
+21. **Emitting any 1.x API.** See §12.
 
 ---
 
@@ -842,9 +908,10 @@ On the returned `routes` object, in **every** package:
 | `collected` | `readonly GetCollectedRoute<TTree>[]` | `{ path, segments, node, metadata }`, one union member per route — `metadata` stays typed while enumerating |
 | `getNode(path)` | `GetRouteNode<TTree, TPath>` | `undefined` at runtime for an unknown path |
 | `getMetadata(path)` | `GetRouteMetadata<TTree, TPath>` | literal types preserved; not resolved |
-| `match(url)` | `RouteMatch \| null` | loose `path: string`, `params: Record<string, string \| string[]>` |
+| `match(url)` | `RouteMatch \| null` | loose `path: string`, `params: Record<string, string \| string[]>` — raw text, no schema run |
 | `buildHref(path, args?)` | `string` | `args` omittable when the route needs nothing |
 | `parseSearchParams(path, raw, options?)` | schema **output** type | `raw`: record, `URLSearchParams`, or entries iterable |
+| `parseParams(path, raw, options?)` | `PathParamsOutput<TPath, TTree>` | runs each segment's `paramSchema` over `match().params`; undeclared segments pass through |
 | `$types` | `{ tree; pathname }` | type-only carrier; `{}` at runtime |
 
 **On `-next` and `-react` additionally:** `TypedLink`, `useTypedRouter` (`push` / `replace` /
@@ -854,18 +921,21 @@ On the returned `routes` object, in **every** package:
 `navigate(0)`.
 
 **Exported functions:** re-exported by **every** package — `buildHref`, `matchRoute`,
-`collectRoutes`, `parseSearchParams`, `toSearchParamsString`, `resolveMetadata`,
-`resolveMetadataValue`, `isRouteGroup`, `METADATA_KEY`, `SearchParamsParseError`. **Core only**
+`collectRoutes`, `parseSearchParams`, `parsePathParams`, `toSearchParamsString`, `resolveMetadata`,
+`resolveMetadataValue`, `isRouteGroup`, `METADATA_KEY`, `SearchParamsParseError`,
+`PathParamsParseError`. **Core only**
 (not re-exported by the adapters) — `createRouteTree`, `collectRawSearchParams`, `parseSegment`,
 `splitPath`. **React only** — `toRouteObjects`, `toReactRouterSegment`.
 
-**Exported types:** `Pathname`, `SearchParams`, `RouteNodeOf`, `RouteMetadataOf`, `CollectedRouteOf`, `RouteArgs`,
-`PathParams`, `PathParamsOutput`, `RouteMatch`, `RoutePaths`, `RouteMetadata`, `BuiltinMetadata`,
-`MetadataValue`, `AnySchema`, `SearchParamsErrorMode`, `CurrentRoute<TTree>`, `TypedRoutes<TTree>`,
-`TypedLinkProps`, `NavigateArgs`, `NavigateArgsTuple`, `NavigateOptions`.
+**Exported types:** `Pathname`, `SearchParams`, `Params`, `RouteNodeOf`, `RouteMetadataOf`,
+`CollectedRouteOf`, `RouteArgs`, `PathParams`, `PathParamsOutput`, `RouteMatch`, `RoutePaths`,
+`RouteMetadata`, `BuiltinMetadata`, `MetadataValue`, `AnySchema`, `SearchParamsErrorMode`,
+`PathParamsErrorMode`, `RawPathParams`, `PathParamSchemas`,
+`CurrentRoute<TTree>`, `TypedRoutes<TTree>`, `TypedLinkProps`, `NavigateArgs`, `NavigateArgsTuple`,
+`NavigateOptions`.
 
 The adapters re-export only a **subset** of core: `RawSearchParams`, `ParseSearchParamsOptions`,
-`BuildHrefArgs`, `CollectedRoute`, `GetRouteNode`, `GetCollectedRoute`, `RouteArgsTuple`,
+`ParsePathParamsOptions`, `BuildHrefArgs`, `CollectedRoute`, `GetRouteNode`, `GetCollectedRoute`, `RouteArgsTuple`,
 `SearchParamsInput` / `SearchParamsOutput`, `RouteTreeInput` and `-next`'s `TypedRouter` are **not**
 among them — import those from core, or use `ReturnType<typeof routes.useTypedRouter>`.
 

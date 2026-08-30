@@ -41,7 +41,7 @@ schemas needs no validator at all. Never import `zod` inside library-facing type
 
 ```ts
 // src/routes.ts
-import { defineRoutes, type Pathname, type SearchParams } from '@hyeonqyu/typed-router-core';
+import { defineRoutes, type Params, type Pathname, type SearchParams } from '@hyeonqyu/typed-router-core';
 import { z } from 'zod';
 
 export const routes = defineRoutes({
@@ -73,7 +73,21 @@ export const routes = defineRoutes({
 // Derived types — never write these unions by hand.
 export type AppPath = Pathname<typeof routes>;          // or: typeof routes.$types.pathname
 export type ProductsSearch = SearchParams<typeof routes, '/products'>;
+export type ProductParams = Params<typeof routes, '/products/[id]'>;   // { id: string } here — see below
 ```
+
+To type a dynamic segment as something other than text, put a `paramSchema` on the node whose key *is*
+that segment. The name comes from the key, so only the type is written down, and nested routes inherit it:
+
+```ts
+'[id]': {
+  _metadata: { title: 'Product detail', paramSchema: z.number() },
+  reviews: { _metadata: { title: 'Reviews' } },   // inherits id: number
+},
+```
+
+`Params<typeof routes, '/products/[id]/reviews'>` is then `{ id: number }`. A segment with no
+`paramSchema` stays `string` (`string[]` for a catch-all), so this is opt-in per segment.
 
 `defineRoutes` takes **no generics and no currying**, returns a plain module-level object, and needs no
 provider. Export it and import it directly wherever you need a URL.
@@ -129,7 +143,26 @@ const match = routes.match('/products/123/reviews?star=5#top');
 ```
 
 `match.path` is a plain `string` and `params` is `Record<string, string | string[]>` — matching is a
-runtime operation, so it is **not** narrowed to the pathname union. Narrow it yourself.
+runtime operation, so it is **not** narrowed to the pathname union. Narrow it yourself. `match` does no
+schema validation either; feed its `params` to `parseParams` for that.
+
+**Parse path params through each segment's own schema.**
+
+```ts
+routes.parseParams('/products/[id]', { id: '42' });                            // { id: 42 } if [id] declares z.number()
+routes.parseParams('/products/[id]', { id: 'abc' });                           // throws PathParamsParseError
+routes.parseParams('/products/[id]', { id: 'abc' }, { onError: 'default' });   // {} — drop the bad segment
+routes.parseParams('/products/[id]', { id: 'abc' }, { onError: 'raw' });       // { id: 'abc' } — no validation
+
+const match = routes.match(url);
+if (match) routes.parseParams(match.path as AppPath, match.params);
+```
+
+Same three `onError` modes as `parseSearchParams`, with the same meanings. `PathParamsParseError.param`
+names the segment that failed. Segments with no `paramSchema` pass through as the strings they are, so a
+route that declares nothing behaves exactly as it did before schemas existed. Catch-alls are validated as
+the whole list they read back as (`z.array(z.number())`, not `z.number()`), and an optional catch-all that
+matched nothing is validated against `undefined`, so `.default([])` and `.optional()` both work.
 
 **Parse search params through the route's own schema.**
 
@@ -242,14 +275,16 @@ your navigation functions inherit the same required/optional/forbidden argument 
    `SearchParams<...>` and `routes.parseSearchParams(path, ...)` are both `never`, so *any* field read is a
    compile error (`TS2339: Property 'x' does not exist on type 'never'`). At runtime the call still returns a
    copy of the raw, uncoerced strings — so the fix is to declare the schema, never to cast the `never` away.
-6. **Handle `parseSearchParams` failure deliberately.** The default is `onError: 'throw'`, which raises
-   `SearchParamsParseError` (`.cause` holds the Zod error or Standard Schema issues). Any user-editable
-   URL will eventually fail, so pick `'default'` (drop bad fields, keep the rest) or `'raw'` on purpose.
+6. **Handle parse failure deliberately, on both halves of the URL.** The default is `onError: 'throw'`,
+   which raises `SearchParamsParseError` or `PathParamsParseError` (`.cause` holds the Zod error or
+   Standard Schema issues). Any user-editable URL will eventually fail, so pick `'default'` (drop the bad
+   fields/segments, keep the rest) or `'raw'` on purpose.
 7. **Do not narrow `routes.match()` by assumption.** `params` values are decoded `string` (or `string[]`
-   for catch-alls), never `number` — `PathParams` allows `string | number` when *writing*,
-   `PathParamsOutput` models what comes *back*.
+   for catch-alls) — `match` never runs a schema. `routes.parseParams(path, match.params)` is what turns
+   them into the declared types; `PathParams` allows `string | number` when *writing* a segment that
+   declares nothing, `PathParamsOutput` models what comes *back*.
 8. **`withMeta`: put only your own fields in `TMetadata`, and annotate every context parameter.**
-   `title` / `label` / `description` / `accessible` / `searchParamsSchema` already come from
+   `title` / `label` / `description` / `accessible` / `searchParamsSchema` / `paramSchema` already come from
    `BuiltinMetadata<TContext>`. Redeclaring one (e.g. `TMetadata = { title: string }`) intersects it down to a
    plain value type: static `title: 'Home'` still compiles, but the context form `title: (ctx) => ...` is
    silently rejected. Leave the built-ins out of `TMetadata`. And because nested nodes are unconstrained,
@@ -263,6 +298,14 @@ your navigation functions inherit the same required/optional/forbidden argument 
 11. **Treat the tree as immutable, and never make `zod` a hard dependency.** `createRouteTree`
     structurally freezes the tree (metadata contents untouched), so runtime route mutation no-ops or
     throws; typing against `z.ZodType` breaks Valibot / ArkType consumers.
+12. **`paramSchema` goes on the dynamic segment's own node, and is a bare schema, not an object.** It
+    describes that one segment, and its name comes from the tree key.
+    ✗ `'[id]': { _metadata: { paramSchema: z.object({ id: z.number() }) } }` — the segment is not an object ·
+    ✗ putting it on the parent (`products: { _metadata: { paramSchema: ... }, '[id]': {} }`) — that declares
+    nothing, since `products` is a static segment ·
+    ✓ `'[id]': { _metadata: { paramSchema: z.number() } }`
+    Do not redeclare an ancestor's segment on a nested route: `/products/[id]/reviews` already inherits
+    `id`. For a catch-all, declare the list (`z.array(z.string())`), not the element.
 
 ## API reference
 
@@ -278,6 +321,7 @@ your navigation functions inherit the same required/optional/forbidden argument 
 | `routes.match` | `(url: string) => RouteMatch \| null` | Live URL → declared route. Static (3) beats dynamic (2) beats catch-all (1). |
 | `routes.buildHref` | `(path, ...args: RouteArgsTuple) => string` | Declared pathname + `params` / `searchParams` / `hash` → URL. |
 | `routes.parseSearchParams` | `(path, raw, options?) => SearchParamsOutput` | Coerce + validate a query string through the route's schema. |
+| `routes.parseParams` | `(path, raw, options?) => PathParamsOutput` | Coerce + validate `match().params` through each segment's `paramSchema`. Undeclared segments pass through as strings. |
 | `routes.$types` | `{ tree; pathname }` | Type-only carrier: `typeof routes.$types.pathname`. |
 | `createRouteTree` | `(tree) => RouteTree<TTree>` | Framework-agnostic half of `defineRoutes`; base for custom adapters. |
 | `resolveMetadata` | `(metadata, context) => TMetadata \| undefined` | Resolves `title`/`label`/`description`/`accessible`; shallow copy, other fields untouched. |
@@ -286,22 +330,29 @@ your navigation functions inherit the same required/optional/forbidden argument 
 | `matchRoute` | `(routes: CollectedRoute[], url) => RouteMatch \| null` | Standalone matcher. |
 | `collectRoutes` | `(tree, basePath?) => CollectedRoute[]` | Lists navigable routes from a raw tree, skipping `(group)` keys. |
 | `parseSearchParams` | `(schema, raw, options?, path?) => Record<string, unknown>` | Standalone parser. No schema → returns a copy of `raw`. |
+| `parsePathParams` | `(schemas, raw, options?, path?) => Record<string, unknown>` | Standalone path-param parser. `schemas` is `Record<segmentName, schema>`. |
 | `collectRawSearchParams` | `(iterable) => RawSearchParams` | Folds `URLSearchParams`-like entries, repeated keys → arrays. |
 | `toSearchParamsString` | `(obj, path?) => string` | `'?a=1&b=2'`. Skips `undefined`/`null`, repeats arrays, ISO-serialises `Date`, JSON-encodes objects and nested arrays, throws on anything unserialisable. |
 | `parseSegment` / `splitPath` / `isRouteGroup` | — | Segment classification helpers. |
 | `SearchParamsParseError` | `class extends Error` | Thrown under `onError: 'throw'`; `.cause` holds the validator's error. |
+| `PathParamsParseError` | `class extends Error { param, cause }` | The path-param equivalent; `.param` names the segment that failed. |
 | `METADATA_KEY` | `'_metadata'` | The reserved destination marker. |
 
 **Types.** These take the **routes object** type: `Pathname<typeof routes>`,
 `SearchParams<typeof routes, '/path'>`, `RouteMetadataOf<…>`, `RouteNodeOf<…>`,
 `CollectedRouteOf<typeof routes>` (the `collected` element union; pass a pathname to pick one
-entry). These take the raw **tree** type (`typeof routes.$types.tree`): `RoutePaths`, `RouteArgs`,
-`RouteArgsTuple`, `SearchParamsInput`, `SearchParamsOutput`, `GetRouteNode`, `GetRouteMetadata`,
-`GetCollectedRoute`. These take a pathname
-string: `PathParams<'/products/[id]'>` (write side, `string | number`) and `PathParamsOutput<…>` (read
-side, always `string`/`string[]`). Also exported: `BuiltinMetadata<TContext>`, `MetadataValue<T, C>`,
+entry), `Params<typeof routes, '/products/[id]'>` (the read side of the path params). These take the raw
+**tree** type (`typeof routes.$types.tree`): `RoutePaths`, `RouteArgs`, `RouteArgsTuple`,
+`SearchParamsInput`, `SearchParamsOutput`, `PathParamsInput`, `ParsedPathParams`, `GetRouteNode`,
+`GetRouteMetadata`, `GetCollectedRoute`. These take a pathname string **first** and the tree second:
+`PathParams<'/products/[id]', Tree>` (write side) and `PathParamsOutput<'/products/[id]', Tree>` (read
+side). The tree argument defaults to `unknown`, under which every segment is the untyped default —
+`string | number` to write, `string` / `string[]` to read — so pass the tree if you want declared
+`paramSchema`s reflected, or use `Params<…>` / `PathParamsInput<…>`, which take the tree already.
+Also exported: `BuiltinMetadata<TContext>`, `MetadataValue<T, C>`,
 `RouteMatch`, `CollectedRoute`, `SegmentPattern`, `RouteParams`, `BuildHrefArgs`, `RawSearchParams`,
-`SearchParamsErrorMode`, `ParseSearchParamsOptions`, `AnySchema`, `ParsableSchema`, `InferSchemaInput`,
+`SearchParamsErrorMode`, `ParseSearchParamsOptions`, `RawPathParams`, `PathParamSchemas`,
+`PathParamsErrorMode`, `ParsePathParamsOptions`, `AnySchema`, `ParsableSchema`, `InferSchemaInput`,
 `InferSchemaOutput`, `RouteTreeInput`, `RouteNodeInput`, `RouteTreeInputWithMeta`,
 `RouteNodeInputWithMeta`, `RouteMetadata`, `RouteGroupKey`, `MetadataKey`, `SegmentKeys`,
 `HasRequiredKeys`, `Simplify`, `PathParamValue`, `TypedRoutes`, `RouteTree`.

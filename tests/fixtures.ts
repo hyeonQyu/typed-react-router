@@ -58,3 +58,43 @@ export const routes = defineRoutes({
 });
 
 export type Routes = typeof routes;
+
+/**
+ * A second tree, for the segments that declare their own type. It mixes the cases
+ * that have to keep working together: a declared segment with an undeclared one
+ * nested under it, a route inheriting two ancestors' declarations, a segment that
+ * declares nothing at all, and both flavours of catch-all.
+ */
+export const typedParamRoutes = defineRoutes({
+  orgs: {
+    '[orgId]': {
+      _metadata: { title: 'Org', paramSchema: z.number() },
+
+      projects: {
+        // Declares no schema of its own, but `orgId` is still part of its pathname.
+        _metadata: { title: 'Projects' },
+
+        '[projectId]': {
+          _metadata: { title: 'Project', paramSchema: z.string().min(3) },
+
+          settings: { _metadata: { title: 'Settings' } },
+        },
+      },
+    },
+  },
+
+  // Declares nothing, so it reads back exactly as it did before schemas existed.
+  posts: {
+    '[slug]': { _metadata: { title: 'Post' } },
+  },
+
+  archive: {
+    '[...date]': { _metadata: { title: 'Archive', paramSchema: z.array(z.number()).length(3) } },
+  },
+
+  gallery: {
+    '[[...filters]]': { _metadata: { title: 'Gallery', paramSchema: z.array(z.string()).default([]) } },
+  },
+});
+
+export type TypedParamRoutes = typeof typedParamRoutes;

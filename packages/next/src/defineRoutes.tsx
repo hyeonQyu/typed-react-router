@@ -1,6 +1,7 @@
 import {
   createRouteTree,
   type GetRouteNode,
+  type ParsePathParamsOptions,
   type ParseSearchParamsOptions,
   type PathParamsOutput,
   type RouteMatch,
@@ -12,7 +13,7 @@ import {
   type SearchParamsOutput,
 } from '@hyeonqyu/typed-router-core';
 import type { ReactElement, Ref } from 'react';
-import { useCurrentRouteImpl, useTypedRouterImpl, useTypedSearchParamsImpl } from './client';
+import { useCurrentRouteImpl, useTypedParamsImpl, useTypedRouterImpl, useTypedSearchParamsImpl } from './client';
 import type { NavigateArgsTuple } from './navigation.types';
 import { createTypedLink, type TypedLinkProps } from './TypedLink';
 
@@ -36,12 +37,10 @@ export type TypedRouter<TTree> = {
 };
 
 export type TypedRoutes<TTree> = RouteTree<TTree> & {
-  TypedLink: <TPath extends RoutePaths<TTree>>(
-    props: TypedLinkProps<TTree, TPath> & { ref?: Ref<HTMLAnchorElement> },
-  ) => ReactElement;
+  TypedLink: <TPath extends RoutePaths<TTree>>(props: TypedLinkProps<TTree, TPath> & { ref?: Ref<HTMLAnchorElement> }) => ReactElement;
   useCurrentRoute: () => CurrentRoute<TTree>;
   useCurrentRouteNode: <TPath extends RoutePaths<TTree>>() => GetRouteNode<TTree, TPath> | null;
-  useTypedParams: <TPath extends RoutePaths<TTree>>(pathname: TPath) => PathParamsOutput<TPath>;
+  useTypedParams: <TPath extends RoutePaths<TTree>>(pathname: TPath, options?: ParsePathParamsOptions) => PathParamsOutput<TPath, TTree>;
   useTypedPathname: () => RoutePaths<TTree> | null;
   useTypedRouter: () => TypedRouter<TTree>;
   useTypedSearchParams: <TPath extends RoutePaths<TTree>>(
@@ -71,10 +70,11 @@ const create = <TTree,>(tree: TTree): TypedRoutes<TTree> => {
     useCurrentRouteNode: () => useCurrentRouteImpl(untyped).node as never,
 
     /**
-     * The dynamic segments of the current URL, typed from the pathname you pass.
+     * The dynamic segments of the current URL, typed from the pathname you pass and
+     * validated by whatever `paramSchema` each of its segments declared.
      * Read from the URL rather than `useParams()`, so catch-alls keep their declared name.
      */
-    useTypedParams: () => useCurrentRouteImpl(untyped).params as never,
+    useTypedParams: (pathname, options) => useTypedParamsImpl(untyped, pathname, options) as never,
 
     /** The current search params, validated and coerced by the route's schema. */
     useTypedSearchParams: (pathname, options) => useTypedSearchParamsImpl(untyped, pathname, options) as never,
@@ -104,12 +104,9 @@ const create = <TTree,>(tree: TTree): TypedRoutes<TTree> => {
  * Use `defineRoutes.withMeta<TMetadata, TContext>()` when every node should share a
  * metadata contract.
  */
-export const defineRoutes = Object.assign(
-  <const TTree extends RouteTreeInput>(tree: TTree): TypedRoutes<TTree> => create(tree),
-  {
-    withMeta:
-      <TMetadata extends RouteMetadata, TContext = unknown>() =>
-      <const TTree extends RouteTreeInputWithMeta<TMetadata, TContext>>(tree: TTree): TypedRoutes<TTree> =>
-        create(tree),
-  },
-);
+export const defineRoutes = Object.assign(<const TTree extends RouteTreeInput>(tree: TTree): TypedRoutes<TTree> => create(tree), {
+  withMeta:
+    <TMetadata extends RouteMetadata, TContext = unknown>() =>
+    <const TTree extends RouteTreeInputWithMeta<TMetadata, TContext>>(tree: TTree): TypedRoutes<TTree> =>
+      create(tree),
+});

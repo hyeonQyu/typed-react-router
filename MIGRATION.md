@@ -75,6 +75,8 @@ Because the schema actually runs now, an invalid URL throws by default. Pick a s
 useTypedSearchParams('/search', { onError: 'default' });   // drop bad fields, keep the rest
 ```
 
+`useTypedParams` returns strings, as 1.x's params did. To read a segment as something else, declare a `paramSchema` on that segment's node — `'[id]': { _metadata: { paramSchema: z.number() } }` — and it reads back as a `number`, validated, with the same `onError` modes. Segments you do not declare are unaffected.
+
 ## Removed
 
 | 1.x | 2.0 |

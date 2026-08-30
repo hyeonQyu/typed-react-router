@@ -8,6 +8,8 @@ One scoping caveat that AI tools should not overstate: the tree is authoritative
 
 Three rules follow from that. **First**, a node becomes a navigable destination only when it declares a `_metadata` block; a node without one still namespaces its children but is not a route (add `_metadata: {}` to make it one). **Second**, segment keys mirror Next.js: `products` is static, `[id]` dynamic, `[...slug]` a catch-all, `[[...path]]` an optional catch-all, and `(group)` a route group that organises the tree without contributing a URL segment. **Third**, path params and search params are always separate arguments — `params` fills the pathname, `searchParams` fills the query string and is typed by that route's `searchParamsSchema`.
 
+Both halves of the URL can be typed and validated. `searchParamsSchema` on a route node types the whole query string; `paramSchema` on a *dynamic segment node* types that one segment, taking its name from the tree key. A segment declaring `paramSchema: z.number()` reads back as `number` and rejects `/orgs/abc`; nested routes inherit their ancestors' segment declarations. A segment with no `paramSchema` reads back as `string` (`string[]` for a catch-all), so this is opt-in and nothing changes for trees that do not use it.
+
 There are no generics, no currying and no provider. Call `defineRoutes` once at module scope, export the result, import it anywhere. `zod` is an optional peer dependency: schemas are matched structurally, so Zod v3, Zod v4 and any [Standard Schema](https://standardschema.dev) validator work, and a tree with no schemas needs no validator at all. Import from ONE package — the adapters re-export most of the core surface, so an app should never depend on `-core` directly.
 
 ```ts
@@ -24,7 +26,7 @@ export const routes = defineRoutes({
         page: z.number().default(1),
       }),
     },
-    '[id]': { _metadata: { title: 'Product detail' } },
+    '[id]': { _metadata: { title: 'Product detail', paramSchema: z.number() } },
   },
 });
 
@@ -32,7 +34,8 @@ export const { TypedLink, useTypedRouter, useTypedParams, useTypedSearchParams }
 
 routes.buildHref('/products/[id]', { params: { id: 42 } }); // '/products/42'
 routes.buildHref('/products', { searchParams: { page: 2 } }); // '/products?page=2'
-routes.match('/products/42'); // { path: '/products/[id]', params: { id: '42' }, … }
+routes.match('/products/42'); // { path: '/products/[id]', params: { id: '42' }, … } — raw, always text
+routes.parseParams('/products/[id]', { id: '42' }); // { id: 42 } — the segment's own schema
 ```
 
 ## Docs

@@ -2,12 +2,13 @@ import {
   defineRoutes,
   type CollectedRoute,
   type CollectedRouteOf,
+  type Params,
   type Pathname,
   type PathParams,
   type RouteMetadataOf,
   type SearchParams,
 } from '@hyeonqyu/typed-router-core';
-import { routes, type Routes } from './fixtures';
+import { routes, typedParamRoutes, type Routes, type TypedParamRoutes } from './fixtures';
 
 /**
  * Compile-time assertions. `Expect<...>` only accepts `true`, and every
@@ -52,6 +53,49 @@ type _dynamicParam = Expect<Equal<PathParams<'/products/[id]/reviews'>, { id: st
 type _catchAllParam = Expect<Equal<PathParams<'/docs/[...slug]'>, { slug: readonly (string | number)[] }>>;
 type _optionalCatchAll = Expect<Equal<PathParams<'/files/[[...path]]'>, { path?: readonly (string | number)[] }>>;
 type _staticHasNoParams = Expect<Equal<keyof PathParams<'/cart'>, never>>;
+
+// Passing the tree changes nothing for a tree that declares no `paramSchema`.
+type _treeAwareIsUnchangedWithoutSchemas = Expect<Equal<PathParams<'/products/[id]', Routes['$types']['tree']>, { id: string | number }>>;
+type _readsBackAsStrings = Expect<Equal<Params<Routes, '/products/[id]/reviews'>, { id: string }>>;
+type _catchAllReadsAsStrings = Expect<Equal<Params<Routes, '/docs/[...slug]'>, { slug: string[] }>>;
+type _optionalCatchAllReadsAsStrings = Expect<Equal<Params<Routes, '/files/[[...path]]'>, { path?: string[] }>>;
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * 2b. A segment that declares a `paramSchema` reads back as that schema's output
+ * ────────────────────────────────────────────────────────────────────────── */
+
+type _declaredSegmentReadsAsNumber = Expect<Equal<Params<TypedParamRoutes, '/orgs/[orgId]'>, { orgId: number }>>;
+
+// A nested route inherits every ancestor segment's declaration, declaring nothing itself.
+type _inheritsOneAncestor = Expect<Equal<Params<TypedParamRoutes, '/orgs/[orgId]/projects'>, { orgId: number }>>;
+type _inheritsTwoAncestors = Expect<
+  Equal<Params<TypedParamRoutes, '/orgs/[orgId]/projects/[projectId]/settings'>, { orgId: number; projectId: string }>
+>;
+
+// A segment that declares nothing keeps reading as text, in the very same tree.
+type _undeclaredStaysText = Expect<Equal<Params<TypedParamRoutes, '/posts/[slug]'>, { slug: string }>>;
+
+// Catch-alls declare the whole list, since that is what the segment reads back as.
+type _declaredCatchAll = Expect<Equal<Params<TypedParamRoutes, '/archive/[...date]'>, { date: number[] }>>;
+type _declaredOptionalCatchAll = Expect<Equal<Params<TypedParamRoutes, '/gallery/[[...filters]]'>, { filters?: string[] }>>;
+
+// The write side honours the declaration too, so a link cannot be built that the read side would reject.
+typedParamRoutes.buildHref('/orgs/[orgId]/projects/[projectId]/settings', { params: { orgId: 1, projectId: 'abc' } });
+typedParamRoutes.buildHref('/archive/[...date]', { params: { date: [2026, 8, 30] } });
+typedParamRoutes.buildHref('/gallery/[[...filters]]', {});
+typedParamRoutes.buildHref('/posts/[slug]', { params: { slug: 'hello' } });
+
+// @ts-expect-error — `orgId` declares `z.number()`, so a string is not a valid link
+typedParamRoutes.buildHref('/orgs/[orgId]', { params: { orgId: 'abc' } });
+
+// @ts-expect-error — `date` declares a number list
+typedParamRoutes.buildHref('/archive/[...date]', { params: { date: ['a'] } });
+
+// `.default([])` makes the optional catch-all optional to write and present to read.
+const galleryFilters: string[] | undefined = typedParamRoutes.parseParams('/gallery/[[...filters]]', {}).filters;
+
+const parsedOrg = typedParamRoutes.parseParams('/orgs/[orgId]/projects/[projectId]', { orgId: '7', projectId: 'abc' });
+type _parseParamsIsTyped = Expect<Equal<typeof parsedOrg, { orgId: number; projectId: string }>>;
 
 /* ────────────────────────────────────────────────────────────────────────────
  * 3. buildHref — params required exactly when the path has dynamic segments
@@ -183,27 +227,38 @@ void metaRoutes.collected[0].metadata.icon;
 
 export type {
   _catchAllParam,
+  _catchAllReadsAsStrings,
   _collectedMetadataIsNeverUndefined,
   _collectedNarrowsInControlFlow,
   _collectedPathsMatchPathnames,
   _collectedRouteOfIsTheElementUnion,
   _collectedRouteOfPicksOneRoute,
   _collectedTitleUnion,
+  _declaredCatchAll,
+  _declaredOptionalCatchAll,
+  _declaredSegmentReadsAsNumber,
   _defaultedIsPresentOnRead,
   _dynamicParam,
+  _inheritsOneAncestor,
+  _inheritsTwoAncestors,
   _matchIsNullable,
   _metadataLiteral,
   _metadataViaHelper,
   _nestedSchema,
   _optionalCatchAll,
+  _optionalCatchAllReadsAsStrings,
   _optionalEnum,
+  _parseParamsIsTyped,
   _parsedShape,
   _pathnameUnion,
   _pathsAreTyped,
   _productsHasNoLabel,
+  _readsBackAsStrings,
   _requiredString,
   _staticHasNoParams,
+  _treeAwareIsUnchangedWithoutSchemas,
+  _undeclaredStaysText,
   _withMetaIconNarrows,
   _withMetaTitleUnion,
 };
-export { groupPath, looseCollected, narrowedTitles, organisationalPath, withMetaTitle };
+export { galleryFilters, groupPath, looseCollected, narrowedTitles, organisationalPath, parsedOrg, withMetaTitle };

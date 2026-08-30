@@ -1,6 +1,6 @@
 'use client';
 
-import type { ParseSearchParamsOptions, RouteMetadata, RouteTree } from '@hyeonqyu/typed-router-core';
+import type { ParsePathParamsOptions, ParseSearchParamsOptions, RouteMetadata, RouteTree } from '@hyeonqyu/typed-router-core';
 import { buildHref, type BuildHrefArgs } from '@hyeonqyu/typed-router-core';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useMemo } from 'react';
@@ -38,11 +38,7 @@ export const useCurrentRouteImpl = (routes: RouteTree<unknown>): RawCurrentRoute
   }, [routes, url]);
 };
 
-export const useTypedSearchParamsImpl = (
-  routes: RouteTree<unknown>,
-  pathname: string,
-  options?: ParseSearchParamsOptions,
-): unknown => {
+export const useTypedSearchParamsImpl = (routes: RouteTree<unknown>, pathname: string, options?: ParseSearchParamsOptions): unknown => {
   const searchParams = useSearchParams();
   const onError = options?.onError;
   const parse = routes.parseSearchParams as ParseUntyped;
@@ -54,6 +50,20 @@ export const useTypedSearchParamsImpl = (
 };
 
 type ParseUntyped = (path: string, raw: Iterable<[string, string]>, options?: ParseSearchParamsOptions) => unknown;
+
+export const useTypedParamsImpl = (routes: RouteTree<unknown>, pathname: string, options?: ParsePathParamsOptions): unknown => {
+  const { params } = useCurrentRouteImpl(routes);
+  const onError = options?.onError;
+  const parse = routes.parseParams as ParseParamsUntyped;
+
+  return useMemo(() => parse(pathname, params, { onError }), [parse, pathname, params, onError]);
+};
+
+type ParseParamsUntyped = (
+  path: string,
+  raw: Record<string, string | string[]>,
+  options?: ParsePathParamsOptions,
+) => Record<string, unknown>;
 
 /** What a navigation call carries once the typed wrapper has erased its pathname generic. */
 export type RawNavigateArgs = BuildHrefArgs & NavigateOptions;
