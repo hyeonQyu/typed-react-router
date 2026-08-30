@@ -87,6 +87,8 @@ Path params (`params`) and search params (`searchParams`) are always separate ar
 
 Reading search params runs your schema for real — values arrive from the URL as strings, so each field's own schema is asked which reading it accepts. A `z.number()` field gets `2`, not `"2"`; a `z.string()` field keeps `"0123"` intact; `.default()` values are filled in.
 
+The write side matches it: objects and nested arrays go into the query string as JSON, so `{ f: { min: 1, max: 9 } }` reads back as that same object. A value with no faithful text form — `NaN`, a symbol, a `Map`, a cyclic object — throws where you build the URL rather than landing in it as `[object Object]`. `Date` is written as an ISO string, so declare those fields `z.coerce.date()`; a plain `z.date()` cannot read back a URL typed-router itself produced.
+
 If a hand-edited URL fails validation, you choose what happens:
 
 ```ts

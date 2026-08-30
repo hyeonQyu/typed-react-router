@@ -26,6 +26,8 @@ routes.match('/products/42');                                   // { path: '/pro
 routes.parseSearchParams('/products', { page: '2' });           // { page: 2 }
 ```
 
+Search params round-trip: objects and nested arrays are written as JSON and read back as themselves, and a value with no faithful text form (`NaN`, a symbol, a `Map`, a cycle) throws instead of becoming `[object Object]`. `Date` is written as ISO, so declare those fields `z.coerce.date()`.
+
 `zod` is an optional peer dependency — schemas are matched structurally, so Zod v3, Zod v4 and any [Standard Schema](https://standardschema.dev) validator work.
 
 MIT

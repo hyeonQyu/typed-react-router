@@ -280,7 +280,10 @@ The argument object is typed per route by `RouteArgs`, and each key is **require
 - The whole object may be omitted when nothing is required, which is why `buildHref('/home')`
   compiles and `buildHref('/products/[id]')` does not.
 
-Segments are `encodeURIComponent`-encoded and `Date` values serialise to ISO strings. A missing
+Path segments are `encodeURIComponent`-encoded, and a segment can only carry text: a `string`,
+`number`, `boolean`, `bigint` or `Date` (ISO). Anything else — an object, `NaN`, a symbol — throws
+`typed-router: route param "id" for "/products/[id]" cannot be serialised (...)` rather than
+emitting `[object Object]`. Query-string encoding is covered in §6. A missing
 dynamic or required catch-all param throws at runtime:
 `typed-router: missing route param "id" for "/products/[id]".` — 1.x navigated to the literal
 string `/products/[id]`; 2.0 refuses on purpose.
@@ -321,6 +324,44 @@ routes.parseSearchParams('/products', new URLSearchParams('page=3&tags=a&tags=b'
 The read side returns the schema's **output** type (defaults applied, transforms run); the write
 side (`buildHref`, `push`, `TypedLink`) takes the **input** type — which is why a `.default()`
 field is optional to write but always present to read.
+
+**What the write side puts in the URL.** Every value is encoded by what a URL can carry back:
+
+| written value | query string | read back as |
+| --- | --- | --- |
+| `string` / `number` / `boolean` / `bigint` | its plain text form | whatever the field's schema accepts |
+| `Date` | ISO 8601 | a `string` — declare the field `z.coerce.date()` to get a `Date` |
+| `['a', 'b']` — flat array | `?k=a&k=b`, one entry per item | the array, unchanged |
+| `{ min: 1, max: 9 }` — object | JSON, URL-encoded | the object |
+| `[[1, 2], [3]]` — nested array | JSON per item | the nested array |
+
+Objects and nested arrays are JSON-encoded, so they round-trip: what `buildHref` writes,
+`parseSearchParams` reads back as the same value. Flat arrays of primitives are untouched by this —
+they keep the repeated-key form they have always had. On the read side the raw string is still the
+first reading tried, so a `z.string()` field whose value happens to look like JSON (`'{"a":1}'`)
+keeps it as a string.
+
+A value may also declare its own text form. An own `toJSON` is used for the JSON encoding, and an
+overridden `toString` is taken as the text the author meant — so a value object, or a boxed
+`String`/`Number`, serialises exactly as it always has. The inherited
+`Object.prototype.toString` is not a declaration and is never used.
+
+**A value with no faithful text form throws instead of corrupting the URL.** `NaN`, `Infinity`, a
+symbol, a function, an invalid `Date`, a `Map` or `Set` (neither declares a text form), and a cyclic
+object all raise `typed-router: search param "f" for "/search" cannot be serialised (...)`. These
+previously emitted `[object Object]` or `NaN` silently, and then failed validation on the way back
+in.
+
+**`Date` fields need `z.coerce.date()`.** A URL carries text, so an ISO string is what comes back;
+a plain `z.date()` rejects it and `parseSearchParams` throws on every read of a URL typed-router
+itself produced. TanStack Router and next-typesafe-url prescribe the same ISO-string carry.
+
+```ts
+searchParamsSchema: z.object({
+  since: z.coerce.date().optional(), // ✅ round-trips
+  until: z.date().optional(),        // ❌ throws on read
+});
+```
 
 **Validation throws by default.** Any user-editable URL eventually fails, so choose deliberately:
 
@@ -708,6 +749,7 @@ matchRoute(collected, '/products/7');
 parseSearchParams(z.object({ page: z.number() }), { page: '4' });  // schema first, untyped return
 collectRawSearchParams(new URLSearchParams('tag=a&tag=b'));        // { tag: ['a', 'b'] }
 toSearchParamsString({ page: 2, tags: ['a', 'b'] });               // '?page=2&tags=a&tags=b'
+toSearchParamsString({ f: { min: 1, max: 9 } });                   // '?f=%7B%22min%22%3A1%2C%22max%22%3A9%7D'
 splitPath('/products/[id]').map(parseSegment);
 isRouteGroup('(account)');                                          // true
 METADATA_KEY;                                                       // '_metadata'

@@ -247,7 +247,7 @@ Everything below is a member of the object returned by `defineRoutes`, unless ma
 | `useTypedPathname()` | `() => RoutePaths<TTree> \| null` | `'use client'`. The declared pattern of the current URL. |
 | `useCurrentRoute()` | `() => { pathname, url, node, metadata, params }` | `'use client'`. `pathname` / `node` / `metadata` are `null` when the URL matches no declared route; `metadata` is loose `Record<string, unknown>` — narrow it yourself. |
 | `useCurrentRouteNode()` | `<TPath>() => GetRouteNode<TTree, TPath> \| null` | `'use client'`. Works on dynamic routes; no runtime argument. |
-| `buildHref(pattern, args?)` | `(pattern, args?) => string` | Server-safe. URL-encodes params, `Date` → ISO. Throws on a missing required param. |
+| `buildHref(pattern, args?)` | `(pattern, args?) => string` | Server-safe. URL-encodes params, `Date` → ISO, objects and nested search params → JSON. Throws on a missing required param, and on any value it cannot serialise faithfully. |
 | `parseSearchParams(pattern, raw, opts?)` | `(pattern, raw, { onError? }?) => SearchParamsOutput<...>` | Server-safe. `raw` is `Record<string, string \| string[]>` or an entries iterable. |
 | `match(url)` | `(url) => { path, node, metadata, params } \| null` | Server-safe. Strips `?`/`#`, decodes params, ranks static > dynamic > catch-all. |
 | `paths` | `readonly RoutePaths<TTree>[]` | Every navigable pathname — sitemaps, nav, enumeration. |

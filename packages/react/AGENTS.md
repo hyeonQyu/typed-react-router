@@ -254,7 +254,7 @@ resolveMetadata(routes.getMetadata('/dashboard'), { locale: 'ko', isAdmin: true 
 | `routes.useCurrentRoute` | `() => CurrentRoute<TTree>` | `{ pathname (declared), url (live), node, metadata, params }`. |
 | `routes.useTypedPathname` | `() => RoutePaths<TTree> \| null` | Declared pattern of the current URL. |
 | `routes.useCurrentRouteNode` | `<TPath>() => GetRouteNode<TTree, TPath> \| null` | Tree node behind the current URL. |
-| `routes.buildHref` | `(path, args?) => string` | Concrete URL from a pattern. URI-encodes; `Date` -> ISO. Throws on a missing param. |
+| `routes.buildHref` | `(path, args?) => string` | Concrete URL from a pattern. URI-encodes; `Date` -> ISO; objects and nested search params -> JSON. Throws on a missing param, and on any value it cannot serialise faithfully. |
 | `routes.match` | `(url) => RouteMatch \| null` | Live URL -> declared route. Static > dynamic > catch-all. |
 | `routes.parseSearchParams` | `(path, raw, options?) => SearchParamsOutput<TTree, TPath>` | Non-hook search-param parse, for loaders/actions. |
 | `routes.paths` | `readonly RoutePaths<TTree>[]` | Every navigable pathname. |

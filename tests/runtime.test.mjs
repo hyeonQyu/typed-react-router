@@ -170,6 +170,166 @@ test('metadata is readable and route nodes are frozen', () => {
   assert.equal(Object.isFrozen(routes.routes.home), true);
 });
 
+// --- search param serialisation (issue #3) ------------------------------------
+
+const serial = defineRoutes({
+  search: {
+    _metadata: {
+      title: 'Search',
+      searchParamsSchema: z.object({
+        f: z.object({ min: z.number(), max: z.number() }).optional(),
+        grid: z.array(z.array(z.number())).optional(),
+        tags: z.array(z.string()).optional(),
+        nums: z.array(z.number()).optional(),
+        raw: z.string().optional(),
+        n: z.number().optional(),
+        since: z.coerce.date().optional(),
+        plainDate: z.date().optional(),
+      }),
+    },
+  },
+  plain: { _metadata: { title: 'Plain' } },
+  item: { '[id]': { _metadata: { title: 'Item' } } },
+});
+
+/** Writes the params to a URL, then reads that URL back the way a consumer would. */
+const roundTrip = (searchParams) => {
+  const href = serial.buildHref('/search', { searchParams });
+  return serial.parseSearchParams('/search', new URLSearchParams(href.split('?')[1] ?? ''));
+};
+
+test('objects round-trip through buildHref and parseSearchParams', () => {
+  assert.equal(
+    serial.buildHref('/search', { searchParams: { f: { min: 1, max: 9 } } }),
+    '/search?f=%7B%22min%22%3A1%2C%22max%22%3A9%7D',
+  );
+  assert.deepEqual(roundTrip({ f: { min: 1, max: 9 } }), { f: { min: 1, max: 9 } });
+});
+
+test('nested arrays round-trip instead of comma-joining', () => {
+  assert.equal(
+    serial.buildHref('/search', { searchParams: { grid: [[1, 2], [3]] } }),
+    '/search?grid=%5B1%2C2%5D&grid=%5B3%5D',
+  );
+  assert.deepEqual(roundTrip({ grid: [[1, 2], [3]] }), { grid: [[1, 2], [3]] });
+  assert.deepEqual(roundTrip({ grid: [[1, 2]] }), { grid: [[1, 2]] });
+});
+
+test('flat primitive arrays keep their existing repeated-key form', () => {
+  assert.equal(serial.buildHref('/search', { searchParams: { tags: ['a', 'b'] } }), '/search?tags=a&tags=b');
+  assert.equal(serial.buildHref('/search', { searchParams: { nums: [1, 2] } }), '/search?nums=1&nums=2');
+  assert.deepEqual(roundTrip({ tags: ['a', 'b'] }), { tags: ['a', 'b'] });
+  assert.deepEqual(roundTrip({ nums: [1, 2] }), { nums: [1, 2] });
+  assert.deepEqual(roundTrip({ tags: ['solo'] }), { tags: ['solo'] });
+});
+
+test('a JSON-shaped string stays a string when the schema asks for one', () => {
+  assert.deepEqual(roundTrip({ raw: '{"a":1}' }), { raw: '{"a":1}' });
+  assert.deepEqual(roundTrip({ raw: '[1,2]' }), { raw: '[1,2]' });
+});
+
+test('values with no faithful text form fail loudly instead of corrupting the URL', () => {
+  const cases = [
+    [{ n: NaN }, /the number NaN/],
+    [{ n: Infinity }, /the number Infinity/],
+    [{ f: Symbol('nope') }, /a symbol/],
+    [{ f: new Map([['a', 1]]) }, /a Map/],
+    [{ f: new Set([1]) }, /a Set/],
+    [{ f: () => 1 }, /a function/],
+    [{ f: new Date('nonsense') }, /a Date/],
+  ];
+
+  for (const [searchParams, message] of cases) {
+    assert.throws(() => serial.buildHref('/search', { searchParams }), message);
+    assert.throws(() => serial.buildHref('/search', { searchParams }), /cannot be serialised/);
+  }
+});
+
+test('a cyclic object fails loudly rather than throwing out of JSON.stringify', () => {
+  const cyclic = { a: 1 };
+  cyclic.self = cyclic;
+  assert.throws(() => serial.buildHref('/search', { searchParams: { f: cyclic } }), /cannot be serialised/);
+});
+
+test('an unserialisable value inside an array fails loudly too', () => {
+  assert.throws(() => serial.buildHref('/search', { searchParams: { nums: [1, NaN] } }), /cannot be serialised/);
+});
+
+test('a bigint is written as its decimal form, like a Date is written as ISO', () => {
+  assert.equal(serial.buildHref('/plain', { searchParams: { big: 9007199254740993n } }), '/plain?big=9007199254740993');
+});
+
+test('a custom toJSON is honoured', () => {
+  class Range {
+    constructor(min, max) {
+      this.min = min;
+      this.max = max;
+    }
+    toJSON() {
+      return { min: this.min, max: this.max };
+    }
+  }
+  assert.deepEqual(roundTrip({ f: new Range(1, 9) }), { f: { min: 1, max: 9 } });
+});
+
+test('path params reject values a segment cannot carry', () => {
+  assert.throws(() => serial.buildHref('/item/[id]', { params: { id: { a: 1 } } }), /route param "id" for "\/item\/\[id\]"/);
+  assert.throws(() => serial.buildHref('/item/[id]', { params: { id: NaN } }), /cannot be serialised/);
+  assert.equal(serial.buildHref('/item/[id]', { params: { id: 42 } }), '/item/42');
+  assert.equal(serial.buildHref('/item/[id]', { params: { id: true } }), '/item/true');
+});
+
+test('Date is written as ISO, and z.coerce.date() is what reads it back', () => {
+  const since = new Date('2026-08-28T00:00:00.000Z');
+  assert.equal(serial.buildHref('/search', { searchParams: { since } }), '/search?since=2026-08-28T00%3A00%3A00.000Z');
+  assert.deepEqual(roundTrip({ since }), { since });
+
+  // A plain z.date() field cannot read back a URL typed-router itself produced.
+  assert.throws(() => roundTrip({ plainDate: since }), /failed validation/);
+});
+
+test('routes without a schema still serialise objects as JSON', () => {
+  assert.equal(serial.buildHref('/plain', { searchParams: { f: { a: 1 } } }), '/plain?f=%7B%22a%22%3A1%7D');
+});
+
+test('a value that declares its own text form keeps it, as String(value) used to give it', () => {
+  class Slug {
+    constructor(value) {
+      this.value = value;
+    }
+    toString() {
+      return this.value;
+    }
+  }
+
+  assert.equal(serial.buildHref('/item/[id]', { params: { id: new Slug('hello') } }), '/item/hello');
+  assert.equal(serial.buildHref('/plain', { searchParams: { slug: new Slug('hello') } }), '/plain?slug=hello');
+
+  // Boxed primitives declare a text form too.
+  assert.equal(serial.buildHref('/plain', { searchParams: { a: new String('hi'), b: new Number(5) } }), '/plain?a=hi&b=5');
+
+  // An object that declares nothing is still refused — `[object Object]` is not a text form.
+  assert.throws(() => serial.buildHref('/item/[id]', { params: { id: { a: 1 } } }), /cannot be serialised/);
+  assert.throws(() => serial.buildHref('/search', { searchParams: { f: new Map([['a', 1]]) } }), /a Map/);
+});
+
+test('toJSON wins over toString, so such an object still round-trips', () => {
+  class Range {
+    toJSON() {
+      return { min: 1, max: 9 };
+    }
+    toString() {
+      return 'range';
+    }
+  }
+  assert.deepEqual(roundTrip({ f: new Range() }), { f: { min: 1, max: 9 } });
+});
+
+test('an invalid Date still throws rather than writing its "Invalid Date" text', () => {
+  assert.throws(() => serial.buildHref('/search', { searchParams: { since: new Date('nonsense') } }), /a Date/);
+  assert.throws(() => serial.buildHref('/item/[id]', { params: { id: new Date('nonsense') } }), /cannot be serialised/);
+});
+
 test('collected keeps the runtime shape adapters rely on', () => {
   const reviews = routes.collected.find((route) => route.path === '/products/[id]/reviews');
   assert.equal(reviews.metadata.title, 'Reviews');
