@@ -1,6 +1,7 @@
 export { createRouteTree, resolveMetadata, resolveMetadataValue, type RouteTree } from './createRouteTree';
 export {
   defineRoutes,
+  type CollectedRouteOf,
   type Pathname,
   type RouteMetadataOf,
   type RouteNodeOf,
@@ -32,6 +33,7 @@ export {
   toSearchParamsString,
   type BuildHrefArgs,
   type CollectedRoute,
+  type GetCollectedRoute,
   type RouteMatch,
   type RouteParams,
   type SegmentPattern,

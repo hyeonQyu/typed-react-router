@@ -166,8 +166,8 @@ export const metaRoutes = defineRoutes.withMeta<AppMeta, AuthContext>()({
 // Builtin resolvable keys — title, label, description, accessible — may be functions of the context.
 export const canSeeAdmin = (ctx: AuthContext) => resolveMetadataValue(metaRoutes.getMetadata('/admin').accessible, ctx);
 
-// Nav generated from the tree, never from a hand-written array.
-export const navItems = metaRoutes.paths.map((path) => ({ path, title: metaRoutes.getMetadata(path).title }));
+// Nav generated from the tree, never from a hand-written array — enumeration keeps metadata typed.
+export const navItems = metaRoutes.collected.map((route) => ({ path: route.path, title: route.metadata.title }));
 ```
 
 Use `withMeta` **only** when every node must satisfy one contract; plain `defineRoutes` infers each node's metadata individually and keeps custom fields.
@@ -231,7 +231,7 @@ useTypedSearchParams('/products', { onError: 'ignore' });   // ✗ not a valid m
 
 **The tree is frozen.** `routes.routes` is deep-frozen (except `_metadata` objects); runtime mutation no-ops or throws.
 
-**A few core types are not re-exported here.** `ParseSearchParamsOptions`, `RawSearchParams`, `BuildHrefArgs`, `CollectedRoute`, `GetRouteNode`, `RouteArgsTuple`, `SearchParamsInput/Output`, `RouteTreeInput`, and the `TypedRouter` type are absent from this package's index. `ParseSearchParamsOptions` itself is absent, but its one member type **is** re-exported: write `{ onError?: SearchParamsErrorMode }` rather than inlining the literals. Prefer that, or deriving the shape (`ReturnType<typeof routes.useTypedRouter>`) rather than adding a core dependency.
+**A few core types are not re-exported here.** `ParseSearchParamsOptions`, `RawSearchParams`, `BuildHrefArgs`, `CollectedRoute` and `GetCollectedRoute` (their routes-object-taking counterpart `CollectedRouteOf` **is** re-exported), `GetRouteNode`, `RouteArgsTuple`, `SearchParamsInput/Output`, `RouteTreeInput`, and the `TypedRouter` type are absent from this package's index. `ParseSearchParamsOptions` itself is absent, but its one member type **is** re-exported: write `{ onError?: SearchParamsErrorMode }` rather than inlining the literals. Prefer that, or deriving the shape (`ReturnType<typeof routes.useTypedRouter>`) rather than adding a core dependency.
 
 ## API reference
 
@@ -251,6 +251,7 @@ Everything below is a member of the object returned by `defineRoutes`, unless ma
 | `parseSearchParams(pattern, raw, opts?)` | `(pattern, raw, { onError? }?) => SearchParamsOutput<...>` | Server-safe. `raw` is `Record<string, string \| string[]>` or an entries iterable. |
 | `match(url)` | `(url) => { path, node, metadata, params } \| null` | Server-safe. Strips `?`/`#`, decodes params, ranks static > dynamic > catch-all. |
 | `paths` | `readonly RoutePaths<TTree>[]` | Every navigable pathname — sitemaps, nav, enumeration. |
+| `collected` | `readonly GetCollectedRoute<TTree>[]` | Navigable routes with compiled segment patterns; each entry keeps its literal `path` and typed `metadata`. |
 | `routes` | `TTree` | The declared tree, frozen. |
 | `getNode(pattern)` / `getMetadata(pattern)` | `(pattern) => node` / `=> metadata` | Typed per node, so custom `_metadata` fields survive. |
 | `$types` | `{ tree; pathname }` | Type-only carrier (empty at runtime). |
@@ -260,6 +261,7 @@ Everything below is a member of the object returned by `defineRoutes`, unless ma
 | `Pathname<typeof routes>` *(type)* | union of navigable pathnames | Same as `typeof routes.$types.pathname`. |
 | `SearchParams<typeof routes, TPath>` *(type)* | parsed query type of one route | |
 | `RouteNodeOf` / `RouteMetadataOf` *(type)* | `<typeof routes, TPath>` | Node / `_metadata` behind one pathname. |
+| `CollectedRouteOf` *(type)* | `<typeof routes, TPath?>` | The `collected` element union; pass a pathname to pick one entry. |
 | `RouteArgs<TTree, TPath>` *(type)* | `params & searchParams & { hash? }` | The rule behind every call site; absent kinds are typed `?: never`. |
 | `PathParams` / `PathParamsOutput` *(type)* | `<TPath>` | What you *write* (`string \| number`) vs. what you *read back* (`string`). |
 | `NavigateArgs` / `NavigateArgsTuple` / `NavigateOptions` *(type)* | Next-specific navigation args | `NavigateOptions = { scroll?: boolean }`. |

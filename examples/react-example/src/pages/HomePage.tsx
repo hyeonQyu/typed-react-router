@@ -1,4 +1,5 @@
 import { RouteInspector } from '../components/RouteInspector';
+import { RouteSitemap } from '../components/RouteSitemap';
 import { code, Section } from '../components/ui';
 import { routes } from '../routes';
 
@@ -13,6 +14,8 @@ export const HomePage = () => (
         <code>/docs</code>, which has no <code>_metadata</code> and so is not a destination.
       </p>
     </Section>
+
+    <RouteSitemap />
 
     <Section title="The React Router config this tree generates">
       <div style={code}>{JSON.stringify(routes.toRouteObjects(), replaceElements, 2)}</div>

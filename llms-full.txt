@@ -380,14 +380,15 @@ remember dynamic params come back as decoded strings while catch-all params come
 ```ts
 routes.paths;                        // readonly AppPathname[] — every navigable pathname
 routes.routes;                       // the declared tree, structurally frozen
-routes.collected;                    // [{ path, segments, node, metadata }, …] — adapter-level
+routes.collected;                    // one typed entry per route — literal `path`, typed `metadata`
 routes.getNode('/products/[id]');    // the tree node, literal types preserved
 routes.getMetadata('/products');     // the _metadata block, typed per node
 routes.$types;                       // type-only carrier; {} at runtime
 ```
 
-`routes.paths` is what a generated nav, a sitemap or an exhaustive test should iterate — never a
-hand-written array of strings. Only the tree *structure* is frozen; `_metadata` contents (schemas,
+`routes.paths` (pathnames) or `routes.collected` (pathname + typed metadata per entry, a union
+discriminated by the literal `path`) is what a generated nav, a sitemap or an exhaustive test
+should iterate — never a hand-written array of strings. Only the tree *structure* is frozen; `_metadata` contents (schemas,
 elements, functions) are left alone deliberately. Adding or removing routes at runtime silently
 no-ops in sloppy mode and throws in strict mode.
 
@@ -796,7 +797,7 @@ On the returned `routes` object, in **every** package:
 | --- | --- | --- |
 | `routes` | `TTree` | the declared tree, structurally frozen |
 | `paths` | `readonly RoutePaths<TTree>[]` | every navigable pathname |
-| `collected` | `readonly CollectedRoute[]` | `{ path, segments, node, metadata }` |
+| `collected` | `readonly GetCollectedRoute<TTree>[]` | `{ path, segments, node, metadata }`, one union member per route — `metadata` stays typed while enumerating |
 | `getNode(path)` | `GetRouteNode<TTree, TPath>` | `undefined` at runtime for an unknown path |
 | `getMetadata(path)` | `GetRouteMetadata<TTree, TPath>` | literal types preserved; not resolved |
 | `match(url)` | `RouteMatch \| null` | loose `path: string`, `params: Record<string, string \| string[]>` |
@@ -816,15 +817,15 @@ On the returned `routes` object, in **every** package:
 (not re-exported by the adapters) — `createRouteTree`, `collectRawSearchParams`, `parseSegment`,
 `splitPath`. **React only** — `toRouteObjects`, `toReactRouterSegment`.
 
-**Exported types:** `Pathname`, `SearchParams`, `RouteNodeOf`, `RouteMetadataOf`, `RouteArgs`,
+**Exported types:** `Pathname`, `SearchParams`, `RouteNodeOf`, `RouteMetadataOf`, `CollectedRouteOf`, `RouteArgs`,
 `PathParams`, `PathParamsOutput`, `RouteMatch`, `RoutePaths`, `RouteMetadata`, `BuiltinMetadata`,
 `MetadataValue`, `AnySchema`, `SearchParamsErrorMode`, `CurrentRoute<TTree>`, `TypedRoutes<TTree>`,
 `TypedLinkProps`, `NavigateArgs`, `NavigateArgsTuple`, `NavigateOptions`.
 
 The adapters re-export only a **subset** of core: `RawSearchParams`, `ParseSearchParamsOptions`,
-`BuildHrefArgs`, `CollectedRoute`, `GetRouteNode`, `RouteArgsTuple`, `SearchParamsInput` /
-`SearchParamsOutput`, `RouteTreeInput` and `-next`'s `TypedRouter` are **not** among them — import
-those from core, or use `ReturnType<typeof routes.useTypedRouter>`.
+`BuildHrefArgs`, `CollectedRoute`, `GetRouteNode`, `GetCollectedRoute`, `RouteArgsTuple`,
+`SearchParamsInput` / `SearchParamsOutput`, `RouteTreeInput` and `-next`'s `TypedRouter` are **not**
+among them — import those from core, or use `ReturnType<typeof routes.useTypedRouter>`.
 
 ---
 
