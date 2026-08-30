@@ -8,6 +8,13 @@ import { z } from 'zod';
  * so the tree and the file system stay in step.
  */
 export const routes = defineRoutes({
+  // The empty key is the root: `app/page.tsx` lives at `/`, so it is declared as `''`
+  // and reached as `routes.buildHref('/')`. Without it `/` would be a live route the
+  // typed API cannot see — exactly the drift `assertRoutesMatchAppDir` reports.
+  '': {
+    _metadata: { title: 'Index', description: 'Redirects to /home' },
+  },
+
   home: {
     _metadata: { title: 'Home', description: 'Everything this example demonstrates' },
   },

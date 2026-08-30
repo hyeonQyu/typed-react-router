@@ -30,6 +30,11 @@
       "import": "./dist/index.mjs",
       "require": "./dist/index.js"
     },
+    "./check": {
+      "types": "./dist/check.d.ts",
+      "import": "./dist/check.mjs",
+      "require": "./dist/check.js"
+    },
     "./package.json": "./package.json"
   },
   "sideEffects": false,

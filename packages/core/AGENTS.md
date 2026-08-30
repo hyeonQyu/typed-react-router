@@ -9,9 +9,10 @@ a parallel `PATHS` list anywhere, you have defeated the entire point of the libr
 Whether the tree also decides which routes *exist* depends on the adapter, and the core package alone
 cannot answer it. Under `@hyeonqyu/typed-router-react`, `toRouteObjects()` builds the router from the
 tree, so nothing can exist outside it. Under `@hyeonqyu/typed-router-next`, the `app/` directory
-decides route existence and the tree mirrors it by hand, with no check that the two agree. The core
-package never touches the filesystem, so it derives types and metadata from what you declared and
-makes no claim about what is actually routable.
+decides route existence and the tree mirrors it by hand; the compiler does not check the two agree,
+so that adapter ships `assertRoutesMatchAppDir` on its own `/check` entry point to verify it in a
+test. The core package never touches the filesystem, so it derives types and metadata from what you
+declared and makes no claim about what is actually routable.
 
 ## Most apps should install an adapter, not this package
 

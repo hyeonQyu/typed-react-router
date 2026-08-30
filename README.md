@@ -164,6 +164,23 @@ routes.parseSearchParams('/products', new URLSearchParams(search));
 routes.parseParams('/orgs/[orgId]', { orgId: '42' });       // { orgId: 42 }, per the segment's schema
 ```
 
+## Which routes exist
+
+On React Router the tree settles this by itself: `toRouteObjects()` builds the router configuration *from* the tree, so a route cannot exist without being declared.
+
+Next's App Router is the other way round — `src/app/` decides which routes exist and the tree mirrors it by hand, which the compiler cannot check. `@hyeonqyu/typed-router-next/check` does:
+
+```ts
+import { assertRoutesMatchAppDir } from '@hyeonqyu/typed-router-next/check';
+import { routes } from './routes';
+
+test('the route tree matches src/app', () => {
+  assertRoutesMatchAppDir(routes, 'src/app');
+});
+```
+
+It reports both directions — a declared route whose page was deleted, and a page the tree never declared — and reads Next's conventions the way Next does: `(group)` and `@slot` folders add no URL segment while pages under them still count, and `(.)` intercepts, `_folder`, `route.ts` and `default.tsx` address no pathname at all. It reads the filesystem, so it lives on its own entry point and never reaches your browser bundle. [Details in the Next guide](./packages/next/README.md#7-keep-the-tree-and-srcapp-in-step).
+
 ## Packages
 
 | package | for |
@@ -190,12 +207,12 @@ yarn workspace react-example dev   # http://localhost:5173
 ```bash
 yarn install
 yarn build                         # all packages + both examples
-yarn test                          # type tests, including cases that must fail to compile
+yarn test                          # type tests + the vitest suite, both against source
 node --test tests/runtime.test.mjs # runs against the built dist, so build first
 yarn lint
 ```
 
-`tests/core.types.test-d.ts` is half positive assertions and half `@ts-expect-error`, so `yarn test` fails both when something that should compile stops compiling *and* when something that should be rejected starts slipping through.
+`tests/core.types.test-d.ts` is half positive assertions and half `@ts-expect-error`, so `yarn test` fails both when something that should compile stops compiling *and* when something that should be rejected starts slipping through. It then runs `vitest`, which covers the parts that only exist at runtime — `tests/check.test.ts` builds throwaway `app/` directories on disk and checks the drift report against them.
 
 ## License
 

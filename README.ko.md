@@ -163,6 +163,23 @@ routes.parseSearchParams('/products', new URLSearchParams(search));
 routes.parseParams('/orgs/[orgId]', { orgId: '42' });       // { orgId: 42 } — 세그먼트 스키마에 따라
 ```
 
+## 어떤 라우트가 존재하는가
+
+React Router에서는 트리가 이걸 스스로 결정합니다 — `toRouteObjects()`가 트리로**부터** 라우터 설정을 만들기 때문에, 선언되지 않은 라우트는 존재할 수 없습니다.
+
+Next의 App Router는 반대입니다. 어떤 라우트가 존재하는지는 `src/app/`이 정하고 트리는 그걸 손으로 따라 씁니다. 컴파일러는 둘의 일치를 검사할 수 없지만, `@hyeonqyu/typed-router-next/check`는 할 수 있습니다:
+
+```ts
+import { assertRoutesMatchAppDir } from '@hyeonqyu/typed-router-next/check';
+import { routes } from './routes';
+
+test('라우트 트리가 src/app과 일치한다', () => {
+  assertRoutesMatchAppDir(routes, 'src/app');
+});
+```
+
+양방향을 모두 보고합니다 — 페이지가 지워진 선언된 라우트, 그리고 트리가 선언한 적 없는 페이지. Next의 컨벤션을 Next와 똑같이 읽습니다: `(group)`과 `@slot` 폴더는 URL 세그먼트를 만들지 않지만 그 아래 페이지는 그대로 라우트로 세고, `(.)` 인터셉트·`_folder`·`route.ts`·`default.tsx`는 자기 pathname이 아예 없습니다. 파일시스템을 읽으므로 별도 엔트리포인트에 있고 브라우저 번들에는 들어가지 않습니다. [자세한 내용은 Next 가이드](./packages/next/README.ko.md#7-트리와-srcapp-어긋남-잡기).
+
 ## 패키지 구성
 
 | 패키지 | 용도 |
@@ -189,12 +206,12 @@ yarn workspace react-example dev   # http://localhost:5173
 ```bash
 yarn install
 yarn build                         # 모든 패키지 + 예제 두 개
-yarn test                          # 타입 테스트 — 컴파일 실패해야 하는 케이스 포함
+yarn test                          # 타입 테스트 + vitest 스위트, 둘 다 소스 대상
 node --test tests/runtime.test.mjs # 빌드된 dist를 대상으로 실행되므로 먼저 build 필요
 yarn lint
 ```
 
-`tests/core.types.test-d.ts`는 절반이 정상 통과해야 하는 어서션이고, 절반은 `@ts-expect-error`입니다. 그래서 `yarn test`는 컴파일되어야 할 코드가 깨졌을 때뿐 아니라, 막혀야 할 코드가 몰래 통과하기 시작했을 때도 실패합니다.
+`tests/core.types.test-d.ts`는 절반이 정상 통과해야 하는 어서션이고, 절반은 `@ts-expect-error`입니다. 그래서 `yarn test`는 컴파일되어야 할 코드가 깨졌을 때뿐 아니라, 막혀야 할 코드가 몰래 통과하기 시작했을 때도 실패합니다. 이어서 `vitest`가 실행되어 런타임에만 존재하는 부분을 덮습니다 — `tests/check.test.ts`는 일회용 `app/` 디렉터리를 디스크에 만들어 드리프트 리포트를 검증합니다.
 
 ## 라이선스
 
