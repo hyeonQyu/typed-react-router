@@ -46,7 +46,10 @@ const useSharedBody = (routes: typeof nextRoutes | typeof reactRoutes) => {
   router.forward();
   router.refresh();
 
-  return { pathname, node, current, id: params.id, page: query.page, sort: query.sort, url: current.url };
+  // Enumeration keeps metadata typed identically on both adapters.
+  const titles: string[] = routes.collected.map((route) => route.metadata.title);
+
+  return { pathname, node, current, titles, id: params.id, page: query.page, sort: query.sort, url: current.url };
 };
 
 const NextNav = () => {

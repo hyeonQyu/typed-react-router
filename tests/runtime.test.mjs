@@ -329,3 +329,12 @@ test('an invalid Date still throws rather than writing its "Invalid Date" text',
   assert.throws(() => serial.buildHref('/search', { searchParams: { since: new Date('nonsense') } }), /a Date/);
   assert.throws(() => serial.buildHref('/item/[id]', { params: { id: new Date('nonsense') } }), /cannot be serialised/);
 });
+
+test('collected keeps the runtime shape adapters rely on', () => {
+  const reviews = routes.collected.find((route) => route.path === '/products/[id]/reviews');
+  assert.equal(reviews.metadata.title, 'Reviews');
+  assert.deepEqual(
+    routes.collected.map((route) => route.path),
+    routes.paths,
+  );
+});

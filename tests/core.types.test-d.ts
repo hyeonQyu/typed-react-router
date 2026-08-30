@@ -1,4 +1,12 @@
-import type { Pathname, PathParams, RouteMetadataOf, SearchParams } from '@hyeonqyu/typed-router-core';
+import {
+  defineRoutes,
+  type CollectedRoute,
+  type CollectedRouteOf,
+  type Pathname,
+  type PathParams,
+  type RouteMetadataOf,
+  type SearchParams,
+} from '@hyeonqyu/typed-router-core';
 import { routes, type Routes } from './fixtures';
 
 /**
@@ -119,8 +127,68 @@ const matched = routes.match('/products/123/reviews');
 type _matchIsNullable = Expect<Equal<typeof matched, NonNullable<typeof matched> | null>>;
 type _pathsAreTyped = Expect<Equal<(typeof routes.paths)[number], AllPaths>>;
 
+/* ────────────────────────────────────────────────────────────────────────────
+ * 7. Enumerating `collected` keeps every route's path and metadata typed
+ * ────────────────────────────────────────────────────────────────────────── */
+
+type CollectedElem = (typeof routes.collected)[number];
+
+type _collectedPathsMatchPathnames = Expect<Equal<CollectedElem['path'], AllPaths>>;
+type _collectedMetadataIsNeverUndefined = Expect<Equal<Extract<CollectedElem['metadata'], undefined>, never>>;
+
+// A field every route declares reads without a cast — renaming it in the tree breaks this line.
+type _collectedTitleUnion = Expect<
+  Equal<
+    CollectedElem['metadata']['title'],
+    'Home' | 'Products' | 'Product detail' | 'Reviews' | 'Cart' | 'Search' | 'Docs' | 'Files' | 'Stats'
+  >
+>;
+
+// The union discriminates on `path`, so ordinary control flow narrows metadata per route.
+const narrowedTitles = routes.collected.map((route) => (route.path === '/cart' ? route.metadata.title : null));
+type _collectedNarrowsInControlFlow = Expect<Equal<(typeof narrowedTitles)[number], 'Cart' | null>>;
+
+type _collectedRouteOfIsTheElementUnion = Expect<Equal<CollectedRouteOf<Routes>, CollectedElem>>;
+type _collectedRouteOfPicksOneRoute = Expect<Equal<CollectedRouteOf<Routes, '/search'>['metadata']['title'], 'Search'>>;
+
+// The precise union stays assignable to the loose runtime shape adapters accept.
+const looseCollected: readonly CollectedRoute[] = routes.collected;
+
+// @ts-expect-error — `searchParamsSchema` is declared on only some routes, so it must be narrowed first
+void routes.collected[0].metadata.searchParamsSchema;
+
+// @ts-expect-error — `/products` declares no `label`
+type _productsHasNoLabel = CollectedRouteOf<Routes, '/products'>['metadata']['label'];
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * 8. `withMeta` — the shared contract stays readable when enumerating
+ * ────────────────────────────────────────────────────────────────────────── */
+
+const metaRoutes = defineRoutes.withMeta<{ title: string; icon?: string }>()({
+  dashboard: { _metadata: { title: 'Dashboard', icon: 'gauge' } },
+  settings: { _metadata: { title: 'Settings' } },
+});
+
+type MetaCollectedElem = (typeof metaRoutes.collected)[number];
+
+// The contract field every route declares reads straight off each element, as its literal type.
+type _withMetaTitleUnion = Expect<Equal<MetaCollectedElem['metadata']['title'], 'Dashboard' | 'Settings'>>;
+const withMetaTitle: string = metaRoutes.collected[0].metadata.title;
+
+// An optional contract field declared on one route narrows by path instead of degrading to `unknown`.
+type _withMetaIconNarrows = Expect<Equal<Extract<MetaCollectedElem, { path: '/dashboard' }>['metadata']['icon'], 'gauge'>>;
+
+// @ts-expect-error — `icon` is missing on `/settings`, so the union refuses blind access
+void metaRoutes.collected[0].metadata.icon;
+
 export type {
   _catchAllParam,
+  _collectedMetadataIsNeverUndefined,
+  _collectedNarrowsInControlFlow,
+  _collectedPathsMatchPathnames,
+  _collectedRouteOfIsTheElementUnion,
+  _collectedRouteOfPicksOneRoute,
+  _collectedTitleUnion,
   _defaultedIsPresentOnRead,
   _dynamicParam,
   _matchIsNullable,
@@ -132,7 +200,10 @@ export type {
   _parsedShape,
   _pathnameUnion,
   _pathsAreTyped,
+  _productsHasNoLabel,
   _requiredString,
   _staticHasNoParams,
+  _withMetaIconNarrows,
+  _withMetaTitleUnion,
 };
-export { groupPath, organisationalPath };
+export { groupPath, looseCollected, narrowedTitles, organisationalPath, withMetaTitle };

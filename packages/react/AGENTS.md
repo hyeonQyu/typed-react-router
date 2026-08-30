@@ -258,7 +258,7 @@ resolveMetadata(routes.getMetadata('/dashboard'), { locale: 'ko', isAdmin: true 
 | `routes.match` | `(url) => RouteMatch \| null` | Live URL -> declared route. Static > dynamic > catch-all. |
 | `routes.parseSearchParams` | `(path, raw, options?) => SearchParamsOutput<TTree, TPath>` | Non-hook search-param parse, for loaders/actions. |
 | `routes.paths` | `readonly RoutePaths<TTree>[]` | Every navigable pathname. |
-| `routes.collected` | `readonly CollectedRoute[]` | Navigable routes with compiled segment patterns. |
+| `routes.collected` | `readonly GetCollectedRoute<TTree>[]` | Navigable routes with compiled segment patterns; each entry keeps its literal `path` and typed `metadata`. |
 | `routes.routes` | `TTree` | The declared tree, structure-frozen. |
 | `routes.getNode` / `getMetadata` | `(path) => node / metadata` | Precisely typed node / `_metadata`. |
 | `routes.$types` | `{ tree; pathname }` | Type-only carrier: `typeof routes.$types.pathname`. |
@@ -267,4 +267,4 @@ resolveMetadata(routes.getMetadata('/dashboard'), { locale: 'ko', isAdmin: true 
 | `resolveMetadata` / `resolveMetadataValue` | `(metadata \| value, context) => …` | Resolves `title`/`label`/`description`/`accessible` against a context. |
 | `SearchParamsParseError` | `class extends Error` | Thrown by `onError: 'throw'` (the default). |
 | `buildHref`, `matchRoute`, `collectRoutes`, `parseSearchParams`, `toSearchParamsString`, `isRouteGroup`, `METADATA_KEY` | — | Untyped core primitives, re-exported. Prefer the methods on `routes`. |
-| Types | `Pathname`, `SearchParams`, `RouteNodeOf`, `RouteMetadataOf`, `RouteArgs`, `PathParams`, `PathParamsOutput`, `RouteMatch`, `RoutePaths`, `RouteMetadata`, `BuiltinMetadata`, `MetadataValue`, `AnySchema`, `SearchParamsErrorMode`, `TypedLinkProps`, `TypedRouter`, `TypedRoutes`, `CurrentRoute`, `NavigateArgs`, `NavigateArgsTuple`, `NavigateOptions` | All exported from `@hyeonqyu/typed-router-react`. |
+| Types | `Pathname`, `SearchParams`, `RouteNodeOf`, `RouteMetadataOf`, `CollectedRouteOf`, `RouteArgs`, `PathParams`, `PathParamsOutput`, `RouteMatch`, `RoutePaths`, `RouteMetadata`, `BuiltinMetadata`, `MetadataValue`, `AnySchema`, `SearchParamsErrorMode`, `TypedLinkProps`, `TypedRouter`, `TypedRoutes`, `CurrentRoute`, `NavigateArgs`, `NavigateArgsTuple`, `NavigateOptions` | All exported from `@hyeonqyu/typed-router-react`. |

@@ -1,4 +1,5 @@
 import { RouteInspector } from '../../components/RouteInspector';
+import { RouteSitemap } from '../../components/RouteSitemap';
 import { code, Section } from '../../components/ui';
 import { routes } from '../../routes';
 
@@ -14,6 +15,8 @@ export default function HomePage() {
           <code>/docs</code>, which has no <code>_metadata</code> and so is not a destination.
         </p>
       </Section>
+
+      <RouteSitemap />
 
       <Section title="Server-side href building">
         <div style={code}>
