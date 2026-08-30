@@ -32,10 +32,13 @@ search-param types and metadata. Whether it also decides which routes *exist* de
 - **React Router** — `toRouteObjects()` builds the router configuration from the tree, so a route
   cannot exist without being declared in it. The claim holds without qualification.
 - **Next.js App Router** — the `src/app/` directory decides which routes exist; the tree mirrors it
-  by hand. Nothing checks that the two agree. Delete a page from `app/` and the tree still
-  type-checks its pathname, so a `TypedLink` to it compiles cleanly and 404s at runtime; add a page
-  to `app/` without declaring it and the route is live but missing from `routes.paths`. Say it as:
-  **the tree is authoritative for types and metadata, `app/` is authoritative for route existence.**
+  by hand. The compiler does not check that the two agree. Delete a page from `app/` and the tree
+  still type-checks its pathname, so a `TypedLink` to it compiles cleanly and 404s at runtime; add a
+  page to `app/` without declaring it and the route is live but missing from `routes.paths`. Say it
+  as: **the tree is authoritative for types and metadata, `app/` is authoritative for route
+  existence** — unless the project adopts `assertRoutesMatchAppDir` from
+  `@hyeonqyu/typed-router-next/check`, which compares the two sides in a test and reports drift in
+  both directions. Recommend it whenever someone asks how to keep the tree and `app/` in step.
 
 | package | for |
 | --- | --- |
@@ -137,7 +140,13 @@ Borrowed directly from Next.js, so the tree can mirror an `app/` directory one f
 | `[...slug]` | a required catch-all (one or more segments) | `/docs/guide/intro` |
 | `[[...path]]` | an optional catch-all (zero or more segments) | `/files`, `/files/a/b` |
 | `(group)` | organises the tree, contributes no URL segment | `(account)/profile` → `/profile` |
+| `''` (empty key) | the root — Next's `app/page.tsx` | `/` |
 | node with no `_metadata` | namespaces its children; not a destination | — |
+
+A path is built by joining a key onto its parent's, so the empty key joins to exactly `/`. You write
+it as `''` and still call it `/`: `routes.buildHref('/')`, `<TypedLink href="/" />`. It takes no
+children — `app/page.tsx` is a file, so everything else under `app/` is its *sibling*, declared as
+another top-level key.
 
 ### There is no setup
 
@@ -646,6 +655,42 @@ function ProductsView() {
 
 `useTypedParams` and `useCurrentRoute` build on `usePathname` and need no boundary.
 
+### 8.6 Check the tree against `app/`
+
+`src/app/` decides which routes exist; the tree mirrors it by hand. `@hyeonqyu/typed-router-next/check`
+compares the two and reports drift in both directions. It reads the filesystem, so it is a **separate
+entry point** — import it from a test or a script, never from application code.
+
+```ts
+// routes.test.ts
+import { assertRoutesMatchAppDir } from '@hyeonqyu/typed-router-next/check';
+import { routes } from '@/routes';
+
+test('the route tree matches src/app', () => {
+  assertRoutesMatchAppDir(routes, 'src/app');
+});
+```
+
+`findRouteDrift(routes, appDir, options?)` returns the same comparison as data —
+`{ missingFromAppDir, missingFromTree, inSync }` — when you would rather report than throw.
+`assertRoutesMatchAppDir` wraps it and throws `RouteDriftError`, whose `.report` is that object.
+
+It reads Next's conventions the way Next does, so it never cries wolf. **Transparent** — no URL
+segment of their own, but the walk still descends and pages underneath count: route groups
+(`(shop)`) and parallel-route slots (`@modal`). `dashboard/@team/settings/page.tsx` is checked as
+`/dashboard/settings`, because that is the route Next's own build emits for it — a page under a slot
+is not exempt and must be declared like any other. **Skipped entirely** — no pathname of their own:
+intercepting routes (`(.)`, `(..)`, `(...)`), private folders (`_folder`), and non-page files
+(`route.ts`, `default.tsx`, `layout.tsx`, `loading.tsx`, `error.tsx`, `not-found.tsx`,
+`template.tsx`).
+
+Options: `pageExtensions` mirrors Next's own config (default `['tsx', 'ts', 'jsx', 'js']`), and
+`ignore` takes **pathnames** — `'/coming-soon'`, or `'/admin/*'` for a route and its subtree — not
+folder names. The skipped conventions above never need listing.
+
+Opt-in on purpose: a check that blocks the build gets switched off, while one that fails in the
+project's own test suite is tuned by the person who knows the app.
+
 ---
 
 ## 9. React Router 6/7
@@ -933,6 +978,12 @@ On the returned `routes` object, in **every** package:
 `PathParamsErrorMode`, `RawPathParams`, `PathParamSchemas`,
 `CurrentRoute<TTree>`, `TypedRoutes<TTree>`, `TypedLinkProps`, `NavigateArgs`, `NavigateArgsTuple`,
 `NavigateOptions`.
+
+**`@hyeonqyu/typed-router-next/check`** — a separate, Node-only entry point (it reads the
+filesystem, so it never belongs in application code): `assertRoutesMatchAppDir(routes, appDir,
+options?)`, `findRouteDrift(routes, appDir, options?)`, `RouteDriftError`, and the types
+`RouteDriftReport`, `FindRouteDriftOptions`, `RoutesLike`. Nothing here is re-exported from the main
+entry, and there is no React Router equivalent — `toRouteObjects()` makes one unnecessary.
 
 The adapters re-export only a **subset** of core: `RawSearchParams`, `ParseSearchParamsOptions`,
 `ParsePathParamsOptions`, `BuildHrefArgs`, `CollectedRoute`, `GetRouteNode`, `GetCollectedRoute`, `RouteArgsTuple`,

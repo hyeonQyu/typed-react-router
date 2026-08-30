@@ -52,4 +52,13 @@ export default defineConfig([
     dts: true,
     esbuildPlugins: [keepClientBoundary('.js')],
   },
+  // `src/check.ts` reads the filesystem, so it ships as its own entry point and is
+  // never reachable from `.` — that is what keeps `node:fs` out of browser bundles.
+  {
+    ...shared,
+    entry: { check: 'src/check.ts' },
+    format: ['esm', 'cjs'],
+    platform: 'node',
+    dts: true,
+  },
 ]);

@@ -10,7 +10,7 @@ npm install @hyeonqyu/typed-router-next zod
 
 ## 1. Declare your tree
 
-Keys are path segments, so the tree mirrors your `src/app/` directory one for one — `[id]`, `[...slug]` and `(group)` mean exactly what they mean in Next.js.
+Keys are path segments, so the tree mirrors your `src/app/` directory one for one — `[id]`, `[...slug]` and `(group)` mean exactly what they mean in Next.js. The root, `app/page.tsx`, is the empty key `''`; you still reach it as `routes.buildHref('/')`.
 
 ```ts
 // routes.ts
@@ -133,6 +133,35 @@ export default function Index() {
 ```
 
 Calling a hook like `useTypedSearchParams` from a server component fails exactly the way calling `useSearchParams` there would — the client-only code lives behind its own `'use client'` boundary, so it never leaks into your server bundle just because you imported `routes`.
+
+## 7. Keep the tree and `src/app/` in step
+
+The tree gives you typed pathnames, but on the App Router it is `src/app/` that decides which routes actually exist. Nothing in the type system connects the two: delete a page and links to it still compile, then 404. Add a page without declaring it and the route is live but missing from `routes.paths`.
+
+`assertRoutesMatchAppDir` closes that gap. It reads the filesystem, so it ships on its own entry point and never reaches your browser bundle:
+
+```ts
+// routes.test.ts
+import { assertRoutesMatchAppDir } from '@hyeonqyu/typed-router-next/check';
+import { routes } from './routes';
+
+test('the route tree matches src/app', () => {
+  assertRoutesMatchAppDir(routes, 'src/app');
+});
+```
+
+A failure names both directions — routes whose page is gone, and pages the tree never declared. `findRouteDrift` returns the same information as data (`{ missingFromAppDir, missingFromTree, inSync }`) when you would rather report than throw.
+
+Next's own conventions are read the way Next reads them, so they never raise a false alarm. Route groups `(shop)` and parallel-route slots `@modal` add no URL segment, but pages *under* them do — `dashboard/@team/settings/page.tsx` is checked as `/dashboard/settings`, because that is the route Next actually serves. Intercepting routes (`(.)`, `(..)`, `(...)`), private folders (`_folder`) and every non-page file — `route.ts`, `default.tsx`, `layout.tsx`, `loading.tsx` and the rest — address no pathname of their own and are ignored entirely. Pass `pageExtensions` if you have configured Next's, and `ignore` for pathnames you want left alone:
+
+```ts
+assertRoutesMatchAppDir(routes, 'src/app', {
+  ignore: ['/admin/*', '/coming-soon'],
+  pageExtensions: ['mdx', 'tsx'],
+});
+```
+
+This is opt-in by design. A check that blocks your build gets switched off; a check that fails in your own test suite is tuned by the person who knows the app. The React Router adapter needs none of this — `toRouteObjects()` builds the router *from* the tree, so a route there cannot exist without being declared.
 
 ## Metadata
 

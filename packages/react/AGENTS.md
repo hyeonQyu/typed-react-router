@@ -2,6 +2,8 @@
 
 The route tree object is the single source of truth for this app's information architecture. You declare the IA once as a nested object, and pathnames, path params, search-param types, navigation, route metadata **and the React Router configuration itself** are all derived from it and checked by the compiler. Never hand-write a URL string, and never keep a second list of routes (a `<Route>` config, a `paths.ts` constants file) alongside the tree — that defeats the entire point of the library.
 
+That claim needs no qualifying here, and there is nothing to check: `toRouteObjects()` *builds* the router configuration from the tree, so a route cannot exist without being declared in it. The Next adapter ships `assertRoutesMatchAppDir` precisely because it has no equivalent — there, `src/app/` decides route existence and the tree only mirrors it. Never suggest that helper for a React Router app; it does not apply, and there is no filesystem for it to read.
+
 Import **everything** from `@hyeonqyu/typed-router-react`. It re-exports the part of the core surface consumers need (see the API reference below for the exact list), so `@hyeonqyu/typed-router-core` must never be added to the consumer's `package.json`. If a core type is not in that list, it is internal — reach for the documented equivalent rather than importing from core.
 
 ```bash

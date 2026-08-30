@@ -2,11 +2,17 @@
   "extends": "../tsconfig.json",
   "compilerOptions": {
     "noEmit": true,
+    // This project only ever type-checks, so declaration emit is dead weight — and its
+    // TS7056 "inferred type too long to serialize" diagnostic fires on route trees that
+    // are perfectly fine to *use*, which is the opposite of what these tests assert.
+    "declaration": false,
+    "declarationMap": false,
     "baseUrl": "..",
     "paths": {
       "@hyeonqyu/typed-router-core": ["./packages/core/src"],
       "@hyeonqyu/typed-router-react": ["./packages/react/src"],
-      "@hyeonqyu/typed-router-next": ["./packages/next/src"]
+      "@hyeonqyu/typed-router-next": ["./packages/next/src"],
+      "@hyeonqyu/typed-router-next/check": ["./packages/next/src/check"]
     }
   },
   "include": ["**/*.ts", "**/*.tsx"]

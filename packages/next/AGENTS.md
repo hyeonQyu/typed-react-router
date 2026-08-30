@@ -2,7 +2,9 @@
 
 **Mental model:** the route tree object is the source of truth for the application's information architecture — its pathnames, params, search-param types and metadata. You declare the IA once as a nested object whose keys mirror `src/app/`; pathnames, path params, search-param types, navigation, and route metadata are all *derived* from that declaration and checked by the compiler. Writing a URL string by hand, or keeping a second list of routes anywhere, defeats the entire point of the library.
 
-**One caveat, and it matters.** On the Next.js App Router the tree does not decide which routes *exist* — the `src/app/` directory does. The tree mirrors it by hand, and nothing checks the two agree: delete a page from `app/` and the tree still type-checks its pathname, so a `TypedLink` to it compiles cleanly and 404s at runtime. Add a page to `app/` without declaring it and the route is live but invisible to `routes.paths`. So: **the tree is authoritative for types and metadata; `app/` is authoritative for route existence.** Keep them in step deliberately. (This caveat is specific to Next — on the React Router adapter, `toRouteObjects()` builds the router *from* the tree, so a route cannot exist without being declared.)
+**One caveat, and it matters.** On the Next.js App Router the tree does not decide which routes *exist* — the `src/app/` directory does. The tree mirrors it by hand, and the compiler does not check the two agree: delete a page from `app/` and the tree still type-checks its pathname, so a `TypedLink` to it compiles cleanly and 404s at runtime. Add a page to `app/` without declaring it and the route is live but invisible to `routes.paths`. So, by default: **the tree is authoritative for types and metadata; `app/` is authoritative for route existence.** (This caveat is specific to Next — on the React Router adapter, `toRouteObjects()` builds the router *from* the tree, so a route cannot exist without being declared.)
+
+**Close it with `assertRoutesMatchAppDir`.** `@hyeonqyu/typed-router-next/check` compares the two sides and reports both directions of drift, so a project that adopts it *does* get the guarantee — enforced by its own test suite rather than by types. Recommend it whenever a consumer asks how to keep the tree and `app/` in step; the caveat above only stands for projects that have not adopted it. See "Checking the tree against `app/`" below.
 
 Import **everything** from `@hyeonqyu/typed-router-next`. It re-exports the core surface — never add `@hyeonqyu/typed-router-core` to a consumer's dependencies. Peer deps: `next ^13 || ^14 || ^15 || ^16` and `react`/`react-dom` `^16.8 || ^17 || ^18 || ^19`; `zod` is an *optional* peer dep: schemas are matched structurally, so Zod v3/v4 or any [Standard Schema](https://standardschema.dev) validator works, and routes without a query string need no schema at all.
 
@@ -172,7 +174,43 @@ export const navItems = metaRoutes.collected.map((route) => ({ path: route.path,
 
 Use `withMeta` **only** when every node must satisfy one contract; plain `defineRoutes` infers each node's metadata individually and keeps custom fields.
 
+## Checking the tree against `app/`
+
+A separate, Node-only entry point. It reads the filesystem, so it must never be imported from application code — only from a test or a script.
+
+```ts
+// routes.test.ts
+import { assertRoutesMatchAppDir } from '@hyeonqyu/typed-router-next/check';
+import { routes } from '@/routes';
+
+test('the route tree matches src/app', () => {
+  assertRoutesMatchAppDir(routes, 'src/app');
+});
+```
+
+`assertRoutesMatchAppDir(routes, appDir, options?)` throws `RouteDriftError` when the two disagree; `findRouteDrift(routes, appDir, options?)` returns `{ missingFromAppDir, missingFromTree, inSync }` instead of throwing. `appDir` resolves from the current working directory. `RouteDriftError.report` carries the same object, so never parse the message.
+
+**Transparent, not skipped:** route groups `(shop)` and parallel-route slots `@modal` contribute no URL segment, but the walk still descends into them — `dashboard/@team/settings/page.tsx` is checked as `/dashboard/settings`, which is the route Next's own build emits for it. Never tell a consumer that a page under a slot is exempt; declare it in the tree like any other route.
+
+**Skipped entirely,** because they address no pathname of their own: intercepting routes (`(.)`, `(..)`, `(...)`), private folders (`_folder`), and every non-page file (`route.ts`, `default.tsx`, `layout.tsx`, `loading.tsx`, `error.tsx`, `not-found.tsx`, `template.tsx`).
+
+Options: `pageExtensions` mirrors Next's own config (default `['tsx', 'ts', 'jsx', 'js']`); `ignore` takes **pathnames**, not folder names — `'/coming-soon'` for one route, `'/admin/*'` for a route and its subtree. The skipped conventions above never need an `ignore` entry.
+
 ## Rules
+
+**The root route is the empty key.** `app/page.tsx` serves `/`, and a path is built by joining a key onto its parent — so `''` joins to exactly `/`.
+```ts
+defineRoutes({ '': { _metadata: { title: 'Index' } }, home: { _metadata: { title: 'Home' } } });
+routes.buildHref('/');          // ✓ the pathname is '/', even though the key is ''
+<TypedLink href="/" />          // ✓
+```
+Omit it and `/` is a live route the typed API cannot name — which `assertRoutesMatchAppDir` reports as `missingFromTree: ['/']`.
+
+The root key takes **no children**. `app/page.tsx` is a file, so everything else in `app/` is its sibling, not its child — declare those as top-level keys of the tree. Nesting under `''` currently yields a doubled `//dashboard` pathname that matches nothing on disk; `assertRoutesMatchAppDir` reports it as `missingFromAppDir`, but write it as a sibling and the question never arises.
+```ts
+defineRoutes({ '': { _metadata: {} }, dashboard: { _metadata: {} } });         // ✓ /, /dashboard
+defineRoutes({ '': { _metadata: {}, dashboard: { _metadata: {} } } });         // ✗ /, //dashboard
+```
 
 **Never hand-write a URL.** Pass the declared pattern plus `params`.
 ```ts
@@ -273,3 +311,14 @@ Everything below is a member of the object returned by `defineRoutes`, unless ma
 | `NavigateArgs` / `NavigateArgsTuple` / `NavigateOptions` *(type)* | Next-specific navigation args | `NavigateOptions = { scroll?: boolean }`. |
 | `BuiltinMetadata` / `RouteMetadata` / `MetadataValue` / `AnySchema` / `RouteMatch` / `RoutePaths` *(type)* | core types, re-exported | `AnySchema` is structural — that is why `zod` stays optional. |
 | `matchRoute` / `collectRoutes` / `isRouteGroup` / `METADATA_KEY` / `toSearchParamsString` *(export)* | low-level core utilities | App code should use `routes.match` / `routes.paths` instead. |
+
+Exported from `@hyeonqyu/typed-router-next/check` — a Node-only entry point, never importable from application code. Nothing here is re-exported from the main entry, and nothing from the main entry is available here:
+
+| Name | Signature | Notes |
+| --- | --- | --- |
+| `assertRoutesMatchAppDir` | `(routes, appDir, options?) => void` | Throws `RouteDriftError` on drift. Use from a test. |
+| `findRouteDrift` | `(routes, appDir, options?) => RouteDriftReport` | The same comparison as data. Throws only when `appDir` does not exist. |
+| `RouteDriftError` | `class extends Error { report }` | `report` is the `RouteDriftReport`; the message lists both directions. |
+| `RouteDriftReport` *(type)* | `{ missingFromAppDir, missingFromTree, inSync }` | Declared-but-absent, present-but-undeclared, and whether both are empty. |
+| `FindRouteDriftOptions` *(type)* | `{ ignore?, pageExtensions? }` | `ignore` takes pathnames (`'/admin/*'`), not folder names. |
+| `RoutesLike` *(type)* | `{ paths: readonly string[] }` | All the checker needs; a `defineRoutes()` result satisfies it structurally. |

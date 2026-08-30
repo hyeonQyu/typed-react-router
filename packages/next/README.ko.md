@@ -10,7 +10,7 @@ npm install @hyeonqyu/typed-router-next zod
 
 ## 1. 트리 선언하기
 
-키가 곧 URL 세그먼트이므로, 트리가 `src/app/` 디렉터리와 그대로 대응됩니다 — `[id]`, `[...slug]`, `(group)`은 Next.js에서와 정확히 같은 의미입니다.
+키가 곧 URL 세그먼트이므로, 트리가 `src/app/` 디렉터리와 그대로 대응됩니다 — `[id]`, `[...slug]`, `(group)`은 Next.js에서와 정확히 같은 의미입니다. 루트인 `app/page.tsx`는 빈 키 `''`로 선언하고, 호출할 때는 그대로 `routes.buildHref('/')`입니다.
 
 ```ts
 // routes.ts
@@ -133,6 +133,35 @@ export default function Index() {
 ```
 
 서버 컴포넌트에서 `useTypedSearchParams` 같은 훅을 호출하면, `useSearchParams`를 거기서 호출했을 때와 정확히 같은 방식으로 실패합니다 — 클라이언트 전용 코드는 자기만의 `'use client'` 경계 뒤에 있으므로, `routes`를 import했다고 해서 서버 번들로 새어 들어가지 않습니다.
+
+## 7. 트리와 `src/app/` 어긋남 잡기
+
+트리는 타입이 붙은 pathname을 주지만, App Router에서 어떤 라우트가 실제로 **존재하는지**를 정하는 것은 `src/app/`입니다. 둘을 이어 주는 장치가 타입 시스템에는 없습니다 — 페이지를 지워도 그리로 가는 링크는 여전히 컴파일되고, 실행하면 404입니다. 반대로 트리에 선언하지 않고 페이지를 추가하면 그 라우트는 살아 있지만 `routes.paths`에는 없습니다.
+
+`assertRoutesMatchAppDir`이 그 틈을 메웁니다. 파일시스템을 읽으므로 별도 엔트리포인트로 배포되고, 브라우저 번들에는 들어가지 않습니다:
+
+```ts
+// routes.test.ts
+import { assertRoutesMatchAppDir } from '@hyeonqyu/typed-router-next/check';
+import { routes } from './routes';
+
+test('라우트 트리가 src/app과 일치한다', () => {
+  assertRoutesMatchAppDir(routes, 'src/app');
+});
+```
+
+실패하면 양쪽 방향을 모두 알려 줍니다 — 페이지가 사라진 라우트와, 트리가 선언한 적 없는 페이지. 던지는 대신 데이터로 받고 싶으면 `findRouteDrift`가 같은 내용을 `{ missingFromAppDir, missingFromTree, inSync }`로 돌려줍니다.
+
+Next의 컨벤션을 Next가 읽는 대로 읽으므로 오탐이 나지 않습니다. 라우트 그룹 `(shop)`과 병렬 라우트 슬롯 `@modal`은 URL 세그먼트를 만들지 않지만 그 **아래**의 페이지는 만듭니다 — `dashboard/@team/settings/page.tsx`는 `/dashboard/settings`로 검사됩니다. Next가 실제로 그 경로를 서빙하기 때문입니다. 반면 인터셉팅 라우트(`(.)`, `(..)`, `(...)`), 프라이빗 폴더(`_folder`), 그리고 페이지가 아닌 모든 파일(`route.ts`, `default.tsx`, `layout.tsx`, `loading.tsx` 등)은 자기 몫의 pathname이 없으므로 아예 무시됩니다. Next의 `pageExtensions`를 바꿨다면 그대로 넘기고, 검사에서 빼고 싶은 경로는 `ignore`에 적습니다:
+
+```ts
+assertRoutesMatchAppDir(routes, 'src/app', {
+  ignore: ['/admin/*', '/coming-soon'],
+  pageExtensions: ['mdx', 'tsx'],
+});
+```
+
+opt-in인 것은 의도된 설계입니다. 빌드를 막는 검사는 결국 꺼지지만, 자기 테스트 스위트에서 실패하는 검사는 그 앱을 아는 사람이 조정합니다. React Router 어댑터에는 이런 장치가 필요 없습니다 — `toRouteObjects()`가 트리로**부터** 라우터를 만들기 때문에, 거기서는 선언되지 않은 라우트가 존재할 수 없습니다.
 
 ## 메타데이터
 
