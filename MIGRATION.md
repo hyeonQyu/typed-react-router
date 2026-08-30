@@ -93,3 +93,46 @@ The provider existed to hand out a static object through context; dropping it re
 ## New in React Router
 
 `routes.toRouteObjects()` builds your React Router configuration from the same tree — see the README. If you would rather keep writing `<Route>` by hand, ignore it; nothing else depends on it.
+
+---
+
+# Changes within 2.x
+
+Not a rewrite, but two things that can change behaviour in code that already compiles.
+
+## The pathname you pass to `useTypedParams` is now checked
+
+It was an unchecked assertion: passing a route the component was not rendered under returned the current route's params under that other route's types, validated against its segments, with no error. It is now compared against the route the live URL matched, and throws `RouteMismatchError` when they disagree.
+
+```tsx
+// rendered under /products/42/reviews
+useTypedParams('/products/[id]');          // ✅ an ancestor — `id` really is in this URL
+useTypedParams('/products/[id]/reviews');  // ✅ the matched route itself
+useTypedParams('/docs/[...slug]');         // ❌ now throws; used to return { slug: undefined } as { slug: string[] }
+```
+
+Ancestors are accepted, so a shared component reading a parent route's params keeps working. A URL matching no declared route throws too. If this fires in your app, the call was already returning data that did not describe the route it claimed to.
+
+`useCurrentRouteNode` gained the same check, as an **optional** argument:
+
+```diff
+-const node = useCurrentRouteNode<'/products/[id]'>();  // type argument, never verified
++const node = useCurrentRouteNode('/products/[id]');    // runtime value, checked
+```
+
+Calling it with no argument still works and is still unchecked, but its return type is now the union of every declared node rather than whatever `TPath` the caller supplied — the old signature let you name any route and got no say in whether that was true.
+
+## `withMeta` now enforces its contract at every depth
+
+`defineRoutes.withMeta<TMetadata>()` only ever constrained **top-level** nodes; anything nested was inferred but unchecked. It now applies at every depth, which is what the name always implied.
+
+```ts
+defineRoutes.withMeta<{ title: string; icon: string }>()({
+  products: {
+    _metadata: { title: 'Products', icon: 'box' },
+    '[id]': { _metadata: { title: 'Detail' } },   // used to compile; now a compile error
+  },
+});
+```
+
+If this surfaces errors, they are metadata blocks that never satisfied the contract you declared. Add the missing fields, or widen `TMetadata`.

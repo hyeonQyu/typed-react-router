@@ -170,6 +170,52 @@ export const matchRoute = (routes: CollectedRoute[], url: string): RouteMatch | 
   return best;
 };
 
+/**
+ * True when `declared` names the route that was matched, or one of its ancestors.
+ *
+ * An ancestor counts because a shared component rendered under `/products/[id]/reviews`
+ * may legitimately read `/products/[id]`'s params — `id` really is in that URL, and the
+ * component is really underneath that route. The root is a route in its own right rather
+ * than every route's parent, so `/` is an ancestor of nothing.
+ */
+export const isSameOrAncestorRoute = (declared: string, matched: string): boolean =>
+  declared === matched || (declared !== '/' && matched.startsWith(`${declared}/`));
+
+/**
+ * Thrown when a hook is handed a pathname the current URL did not come from — the
+ * case where the returned value would otherwise be confidently typed and factually
+ * wrong.
+ */
+export class RouteMismatchError extends Error {
+  /** The pathname the caller asserted, e.g. `/products/[id]`. */
+  readonly declared: string;
+  /** The route the live URL matched — `null` when it matched none. */
+  readonly matched: string | null;
+
+  constructor(hook: string, declared: string, matched: string | null) {
+    super(
+      matched === null
+        ? `typed-router: ${hook}("${declared}") was called where the URL matches no declared route.`
+        : `typed-router: ${hook}("${declared}") was called under "${matched}". ` +
+            'Pass the route this component renders under, or one of its ancestors.',
+    );
+    this.name = 'RouteMismatchError';
+    this.declared = declared;
+    this.matched = matched;
+  }
+}
+
+/**
+ * Guards a hook's pathname argument against the route the URL actually matched.
+ *
+ * Without this the argument is an unchecked assertion: the wrong one still type-checks
+ * and still returns a value, just one describing a different route.
+ */
+export const assertRouteMatches = (hook: string, declared: string, matched: string | null): void => {
+  if (matched !== null && isSameOrAncestorRoute(declared, matched)) return;
+  throw new RouteMismatchError(hook, declared, matched);
+};
+
 /** Names a value in an error message without stringifying something unstringifiable. */
 const describe = (value: unknown): string => {
   if (typeof value === 'number') return `the number ${value}`;

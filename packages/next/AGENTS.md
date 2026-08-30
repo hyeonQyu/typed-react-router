@@ -127,7 +127,7 @@ import { useCurrentRoute, useCurrentRouteNode, useTypedParams, useTypedPathname 
 export function Info() {
   const pattern = useTypedPathname();          // '/products/[id]' — the DECLARED pattern, or null
   const current = useCurrentRoute();           // { pathname, url, node, metadata, params } — pathname/node/metadata are `null` when nothing matches
-  const node = useCurrentRouteNode<'/products/[id]'>(); // no runtime arg; the generic only narrows
+  const node = useCurrentRouteNode('/products/[id]');   // checked against the live URL; narrows to that node
   const { id } = useTypedParams('/products/[id]');      // { id: string } — or the segment's paramSchema output
   const { slug } = useTypedParams('/docs/[...slug]');   // { slug: string[] }
 
@@ -261,7 +261,7 @@ useTypedSearchParams('/products', { onError: 'ignore' });   // ✗ not a valid m
 
 **`useTypedPathname()` returns the pattern, not the URL.** `useTypedPathname()` → `/products/[id]`; `useCurrentRoute().url` → `/products/42`. String-comparing the former against a live URL silently never matches.
 
-**`useTypedParams(pathname)` returns the *current* route's params, typed from the pathname you pass.** The argument does not select which URL is read — that is always the live one — but it does select which `paramSchema`s are applied to it. Pass the pathname of the route the component actually renders on; passing another route's gives you correct data under a wrong type, and validates it against the wrong segments.
+**`useTypedParams(pathname)` returns the *current* route's params, typed from the pathname you pass.** The argument does not select which URL is read — that is always the live one — but it does select the types and which `paramSchema`s are applied. It is therefore **checked**: pass a route the URL did not come from and it throws `RouteMismatchError` rather than handing you another route's params under this route's types. An ancestor is accepted (`useTypedParams('/products/[id]')` under `/products/42/reviews`), because such a component really is underneath that route. `useCurrentRouteNode(pathname)` takes the same argument and makes the same check; called with no argument it stays unchecked and returns the union of every node.
 
 **Type a dynamic segment with `paramSchema` on the segment's own node.** `'[id]': { _metadata: { paramSchema: z.number() } }` makes `useTypedParams('/products/[id]').id` a `number` and rejects `/products/abc` with a `PathParamsParseError`. The name comes from the tree key, so the schema is bare (`z.number()`), not an object, and nested routes inherit it — `/products/[id]/reviews` gets `id: number` without redeclaring anything. Catch-alls declare the whole list (`z.array(z.string())`). A segment with no `paramSchema` stays `string` / `string[]`, exactly as before. Same `onError` modes as search params: `useTypedParams('/products/[id]', { onError: 'default' })`.
 
@@ -282,11 +282,11 @@ Everything below is a member of the object returned by `defineRoutes`, unless ma
 | `defineRoutes` *(export)* | `(tree) => TypedRoutes<TTree>` | Entry point. `.withMeta<TMetadata, TContext>()(tree)` for a shared metadata contract. |
 | `TypedLink` | `<TPath>(props: TypedLinkProps<TTree, TPath>) => ReactElement` | Server-safe (no hooks). Wraps `next/link`; forwards every other prop. Props: `href`, `params`, `searchParams`, `hash`. |
 | `useTypedRouter()` | `() => { push, replace, prefetch, back, forward, refresh }` | `'use client'`. `push/replace/prefetch(pattern, args?)`; `args` also takes `scroll` (ignored by `prefetch`). |
-| `useTypedParams(pattern, opts?)` | `(pattern, { onError? }?) => PathParamsOutput<TPath, TTree>` | `'use client'`. Reads the live URL; the pattern picks the types and the `paramSchema`s applied. Undeclared segments are `string` / `string[]`. |
+| `useTypedParams(pattern, opts?)` | `(pattern, { onError? }?) => PathParamsOutput<TPath, TTree>` | `'use client'`. Reads the live URL; the pattern picks the types and the `paramSchema`s applied, and is checked against the matched route — a mismatch throws `RouteMismatchError`, an ancestor is fine. Undeclared segments are `string` / `string[]`. |
 | `useTypedSearchParams(pattern, opts?)` | `(pattern, { onError? }?) => SearchParamsOutput<TTree, TPath>` | `'use client'` + `<Suspense>`. Returns the schema **output** type (defaults applied). |
 | `useTypedPathname()` | `() => RoutePaths<TTree> \| null` | `'use client'`. The declared pattern of the current URL. |
 | `useCurrentRoute()` | `() => { pathname, url, node, metadata, params }` | `'use client'`. `pathname` / `node` / `metadata` are `null` when the URL matches no declared route; `metadata` is loose `Record<string, unknown>` — narrow it yourself. |
-| `useCurrentRouteNode()` | `<TPath>() => GetRouteNode<TTree, TPath> \| null` | `'use client'`. Works on dynamic routes; no runtime argument. |
+| `useCurrentRouteNode(pattern?)` | `<TPath>(pattern: TPath) => GetRouteNode<TTree, TPath> \| null` / `() => GetRouteNode<TTree, RoutePaths<TTree>> \| null` | `'use client'`. Works on dynamic routes. With a pattern it is checked against the live URL and narrows to that node; without one it is unchecked and returns the union. |
 | `buildHref(pattern, args?)` | `(pattern, args?) => string` | Server-safe. URL-encodes params, `Date` → ISO, objects and nested search params → JSON. Throws on a missing required param, and on any value it cannot serialise faithfully. |
 | `parseSearchParams(pattern, raw, opts?)` | `(pattern, raw, { onError? }?) => SearchParamsOutput<...>` | Server-safe. `raw` is `Record<string, string \| string[]>` or an entries iterable. |
 | `parseParams(pattern, raw, opts?)` | `(pattern, raw, { onError? }?) => PathParamsOutput<...>` | Server-safe. Run `match().params` — or a server component's own `params` — through the segments' schemas. |
@@ -300,6 +300,7 @@ Everything below is a member of the object returned by `defineRoutes`, unless ma
 | `SearchParamsParseError` *(export)* | `class extends Error { cause }` | Thrown under `onError: 'throw'`. |
 | `SearchParamsErrorMode` *(type)* | `'throw' \| 'default' \| 'raw'` | The `onError` modes; `ParseSearchParamsOptions` itself is not re-exported. |
 | `PathParamsParseError` *(export)* | `class extends Error { param, cause }` | Thrown by `useTypedParams` / `parseParams` under `onError: 'throw'`. |
+| `RouteMismatchError` *(export)* | `class extends Error { declared, matched }` | Thrown when `useTypedParams` / `useCurrentRouteNode` is given a pathname the live URL did not come from. |
 | `PathParamsErrorMode` *(type)* | `'throw' \| 'default' \| 'raw'` | The same three modes for path params; `ParsePathParamsOptions` is not re-exported either. |
 | `Pathname<typeof routes>` *(type)* | union of navigable pathnames | Same as `typeof routes.$types.pathname`. |
 | `SearchParams<typeof routes, TPath>` *(type)* | parsed query type of one route | |

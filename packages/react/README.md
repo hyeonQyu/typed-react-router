@@ -142,6 +142,12 @@ A dynamic segment reads back as a `string` unless it says otherwise. Give the se
 
 No Suspense boundary or client/server split to worry about here — `useTypedSearchParams` reads from React Router's `useLocation()` directly. See the project overview for the `onError` modes both hooks accept when a hand-edited URL fails validation. `useCurrentRouteNode()` and `useTypedPathname()` are also available if you only need the tree node or the declared pattern.
 
+## Framework mode
+
+This guide covers React Router's **library mode**, where your app owns the router configuration. In **framework mode** (`@react-router/dev`, an `app/routes.ts` config), `toRouteObjects()` is not usable: it emits `element` / `Component`, React elements resolved at runtime, while framework mode's `RouteConfigEntry` wants `file`, a module path it resolves at build time so it can code-split each route and generate its types.
+
+Everything else about the tree carries over, because none of it depended on a router. Declare `file` on `_metadata` instead of `element`, and import from `@hyeonqyu/typed-router-core` rather than this package — the framework brings its own `<Link>` and hooks. [`examples/react-router-framework-example`](../../examples/react-router-framework-example) is a runnable version.
+
 ## Metadata
 
 `title`, `label`, `description` and `accessible` may be plain values or functions of a context object; `resolveMetadata` (from `@hyeonqyu/typed-router-core`, re-exported here) resolves them. See the [project overview](../../README.md#route-metadata) for the full explanation, including `defineRoutes.withMeta`.

@@ -24,6 +24,9 @@ dist
 
 # Example app build output
 .next
+build
+# React Router framework mode's generated route types
+.react-router
 *.tsbuildinfo
 .claude
 

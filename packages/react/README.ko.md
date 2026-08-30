@@ -142,6 +142,12 @@ function Products() {
 
 여기서는 Suspense 경계나 클라이언트/서버 분리를 신경 쓸 필요가 없습니다 — `useTypedSearchParams`는 React Router의 `useLocation()`을 직접 읽습니다. 손으로 수정한 URL이 검증에 실패했을 때 두 훅이 받는 `onError` 모드는 프로젝트 개요를 참고하세요. 트리 노드나 선언된 패턴만 필요하다면 `useCurrentRouteNode()`와 `useTypedPathname()`도 사용할 수 있습니다.
 
+## framework mode
+
+이 가이드는 앱이 라우터 설정을 직접 소유하는 React Router의 **라이브러리 모드**를 다룹니다. **framework mode**(`@react-router/dev`, `app/routes.ts` 설정)에서는 `toRouteObjects()`를 쓸 수 없습니다. 이쪽은 런타임에 해석되는 React 엘리먼트인 `element` / `Component`를 내보내는데, framework mode의 `RouteConfigEntry`는 빌드 타임에 해석해서 라우트마다 코드 스플리팅하고 타입을 생성할 수 있는 모듈 경로 `file`을 원하기 때문입니다.
+
+트리의 나머지는 그대로 넘어갑니다. 애초에 라우터에 의존한 적이 없기 때문입니다. `_metadata`에 `element` 대신 `file`을 선언하고, 이 패키지 대신 `@hyeonqyu/typed-router-core`에서 import하세요 — 프레임워크가 자체 `<Link>`와 훅을 제공합니다. [`examples/react-router-framework-example`](../../examples/react-router-framework-example)에 실행 가능한 버전이 있습니다.
+
 ## 메타데이터
 
 `title`, `label`, `description`, `accessible`은 고정값이거나 컨텍스트 객체를 받는 함수일 수 있습니다. `resolveMetadata`(`@hyeonqyu/typed-router-core`에서, 여기서도 재수출됨)로 이를 해석할 수 있습니다. 전체 설명(`defineRoutes.withMeta` 포함)은 [프로젝트 개요](../../README.ko.md#라우트-메타데이터)를 참고하세요.

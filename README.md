@@ -60,7 +60,28 @@ No generics, no currying, no provider to wrap your app in. The key syntax is bor
 | `[...slug]` | a required catch-all (one or more segments) |
 | `[[...slug]]` | an optional catch-all (zero or more segments) |
 | `(group)` | organises the tree without adding a URL segment |
+| `''` (empty key) | the root, `/` |
 | node with no `_metadata` | namespaces its children but is not itself a destination |
+
+### The root route
+
+A path is built by joining a node's key onto its parent's, so the empty key joins to exactly `/`:
+
+```ts
+const routes = defineRoutes({
+  '': { _metadata: { title: 'Home' } },
+  products: { _metadata: { title: 'Products' } },
+});
+
+routes.paths;               // ['/', '/products']
+routes.buildHref('/');      // '/'
+routes.getMetadata('/');    // { title: 'Home' }
+routes.match('/')?.path;    // '/'
+```
+
+The key is `''`, but the pathname is `/` — that is how you write it versus how you call it. Declare it and `/` becomes an ordinary route; leave it out and `/` is a live URL your tree cannot name, which is exactly the drift `assertRoutesMatchAppDir` reports on Next.
+
+The root takes no children: `app/page.tsx` is a file, so every other route is its sibling rather than its descendant. Nesting under `''` doubles the separator (`//dashboard`) and matches nothing.
 
 ## Type-safe navigation
 
@@ -131,6 +152,21 @@ useTypedParams('/orgs/[orgId]', { onError: 'default' }); // same modes, same mea
 
 `throw` raises `SearchParamsParseError` or `PathParamsParseError`; the latter names the segment that failed in `.param`.
 
+### The pathname you pass is checked
+
+`useTypedParams('/products/[id]')` reads params *as* that route, so the route has to be the one you are actually rendered under. It is checked against the URL rather than believed:
+
+```ts
+// Rendered under /products/42/reviews:
+useTypedParams('/products/[id]');          // ✅ an ancestor — `id` really is in this URL
+useTypedParams('/products/[id]/reviews');  // ✅ the matched route itself
+useTypedParams('/docs/[...slug]');         // ❌ RouteMismatchError
+```
+
+An ancestor is accepted because a shared component rendered deeper down may legitimately read a parent route's params. Anything else throws `RouteMismatchError`, naming both the route you passed and the one the URL matched — as does a URL that matches no declared route at all. Without the check the call would return another route's params under this route's types, which type-checks and is simply wrong.
+
+`useCurrentRouteNode(pathname)` takes the same argument and makes the same check. Called with no argument it stays unchecked, and its return type is then the union of every declared node — which is all an unchecked call can honestly promise.
+
 ## Route metadata
 
 `_metadata` is inferred per node, so different routes can carry different fields — `title`, `label`, `description` and `accessible` may be plain values or functions of an app context:
@@ -146,6 +182,23 @@ Want every node to share one metadata contract instead? Opt in explicitly:
 ```ts
 const routes = defineRoutes.withMeta<{ name: string }, { locale: string }>()({ ... });
 ```
+
+The contract is enforced, at every depth: any node that declares `_metadata` must satisfy it in full, while per-node inference still keeps each route's own literal types and any extra fields it declared.
+
+```ts
+const routes = defineRoutes.withMeta<{ title: string; icon: string }>()({
+  home: { _metadata: { title: 'Home', icon: 'house', badge: 'new' } },  // ✅ extras are kept
+  products: {
+    _metadata: { title: 'Products', icon: 'box' },
+    '[id]': { _metadata: { title: 'Detail' } },                          // ❌ icon is missing
+  },
+});
+
+routes.getMetadata('/home').title;   // 'Home' — still the literal, not `string`
+routes.getMetadata('/home').badge;   // 'new'  — the contract is a floor, not a ceiling
+```
+
+A node with no `_metadata` at all is organisational rather than a route, so the contract has nothing to enforce on it.
 
 ## Framework-agnostic use
 
@@ -168,6 +221,8 @@ routes.parseParams('/orgs/[orgId]', { orgId: '42' });       // { orgId: 42 }, pe
 
 On React Router the tree settles this by itself: `toRouteObjects()` builds the router configuration *from* the tree, so a route cannot exist without being declared.
 
+A node whose `_metadata` names no page — no `element`, `Component` or `lazy` — still becomes a route, and one that matches while rendering nothing. That is deliberate: the tree declares information architecture, and a node may name a place without naming a page this router draws. If such a path should 404 instead, give the node a page or leave it out of the config; a trailing `{ path: '*' }` will not catch it, because the route matched.
+
 Next's App Router is the other way round — `src/app/` decides which routes exist and the tree mirrors it by hand, which the compiler cannot check. `@hyeonqyu/typed-router-next/check` does:
 
 ```ts
@@ -187,16 +242,27 @@ It reports both directions — a declared route whose page was deleted, and a pa
 | --- | --- |
 | [`@hyeonqyu/typed-router-core`](./packages/core/README.md) | the tree, types and URL helpers — framework-free |
 | [`@hyeonqyu/typed-router-next`](./packages/next/README.md) | Next.js App Router |
-| [`@hyeonqyu/typed-router-react`](./packages/react/README.md) | React Router 6/7 |
+| [`@hyeonqyu/typed-router-react`](./packages/react/README.md) | React Router 6/7 library mode |
+
+### React Router 7 framework mode
+
+The React adapter is built for React Router's **library mode** — the one where you own the router configuration. In **framework mode** (`@react-router/dev`, an `app/routes.ts` config), `toRouteObjects()` is not usable: it emits `element` / `Component`, React elements resolved at runtime, while framework mode's `RouteConfigEntry` wants `file`, a module path it resolves at build time so it can code-split each route and generate its types. The two describe the same routes in units the other cannot read.
+
+Everything else carries over, because none of it ever depended on a router: `paths`, `buildHref`, `match`, `parseParams`, `parseSearchParams`, `getMetadata` and `collected` all work unchanged. Declare `file` on `_metadata` instead of `element` and the tree builds the framework config in about fifteen lines — see [`examples/react-router-framework-example`](./examples/react-router-framework-example), which does exactly that and is pinned by `tests/framework-mode.test.ts`.
+
+In framework mode, import from `@hyeonqyu/typed-router-core` rather than the React adapter: the framework brings its own `<Link>` and hooks, so the adapter's would be a second answer to a question already answered.
 
 ## Examples
 
-Two runnable apps declare the *same* tree and share component code verbatim — proof that the API is genuinely identical across adapters:
+Three runnable apps. The first two declare the *same* tree and share component code verbatim — proof that the API is genuinely identical across adapters:
 
 ```bash
-yarn workspace next-example dev    # http://localhost:3000
-yarn workspace react-example dev   # http://localhost:5173
+yarn workspace next-example dev                      # http://localhost:3000
+yarn workspace react-example dev                     # http://localhost:5173
+yarn workspace react-router-framework-example dev    # http://localhost:5174
 ```
+
+The React example also carries a permission-gated menu built from `routes.collected` and `resolveMetadata`, so the `accessible` metadata built-in is demonstrated rather than only described.
 
 ## Upgrading from 1.x
 
@@ -206,13 +272,15 @@ yarn workspace react-example dev   # http://localhost:5173
 
 ```bash
 yarn install
-yarn build                         # all packages + both examples
-yarn test                          # type tests + the vitest suite, both against source
-node --test tests/runtime.test.mjs # runs against the built dist, so build first
+yarn build   # all packages + the examples
+yarn type    # type-checks every workspace (builds the packages first — the examples resolve `dist`)
+yarn test    # type-level assertions, then the runtime and rendering suites
 yarn lint
 ```
 
-`tests/core.types.test-d.ts` is half positive assertions and half `@ts-expect-error`, so `yarn test` fails both when something that should compile stops compiling *and* when something that should be rejected starts slipping through. It then runs `vitest`, which covers the parts that only exist at runtime — `tests/check.test.ts` builds throwaway `app/` directories on disk and checks the drift report against them.
+`yarn test` is two suites. `tsc -p tests/tsconfig.json` runs the type-level assertions — half positive, half `@ts-expect-error` — so it fails both when something that should compile stops compiling *and* when something that should be rejected starts slipping through. Then `vitest` runs everything that only exists at runtime: the framework-free suite, both adapters rendered under jsdom with Testing Library, and the drift check against throwaway `app/` directories on disk. Every one of them resolves the packages to `src`, so a green run can never describe code that is no longer there.
+
+CI runs `lint`, `type`, `test` and `build` on Node 20 and 22 for every pull request.
 
 ## License
 

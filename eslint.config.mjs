@@ -75,6 +75,15 @@ export default [
   {
     // Patterns are resolved from this file's directory, so they need `**/` to reach
     // into the workspaces where lint actually runs.
-    ignores: ['**/dist/**', '**/node_modules/**', '**/.next/**', '**/.yarn/**', '**/*.config.js'],
+    ignores: [
+      '**/dist/**',
+      '**/node_modules/**',
+      '**/.next/**',
+      '**/.yarn/**',
+      '**/*.config.js',
+      // React Router framework mode's build output and generated route types.
+      '**/build/**',
+      '**/.react-router/**',
+    ],
   },
 ];

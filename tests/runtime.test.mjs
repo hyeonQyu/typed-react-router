@@ -1,12 +1,16 @@
 /**
- * Runtime checks against the built `dist` output — the same code consumers install.
- * Run with: node tests/runtime.test.mjs
+ * The framework-free half of the runtime suite: everything that needs no DOM.
+ *
+ * It runs on `vitest` (so `yarn test` covers it) but keeps `node:assert/strict` for
+ * the assertions themselves, which say what they mean without a matcher vocabulary.
+ * The imports below are aliased to `src` by `vitest.config.mts`, so a green run always
+ * describes the code that is in the tree right now.
  */
 import assert from 'node:assert/strict';
-import test from 'node:test';
+import { test } from 'vitest';
 import { z } from 'zod';
-import { defineRoutes } from '../packages/core/dist/index.mjs';
-import { toRouteObjects } from '../packages/react/dist/index.mjs';
+import { assertRouteMatches, defineRoutes, isSameOrAncestorRoute } from '@hyeonqyu/typed-router-core';
+import { toRouteObjects } from '@hyeonqyu/typed-router-react';
 
 const routes = defineRoutes({
   home: { _metadata: { title: 'Home' } },
@@ -163,6 +167,21 @@ test('on a childless node, layout stands in for element but never overrides it',
     { path: 'onlyLayout', element: 'Layout' },
     { path: 'both', element: 'Page' },
   ]);
+});
+
+test('a node with no page field becomes a route that matches and renders nothing', () => {
+  // Intended, and pinned here so it stays a decision rather than a surprise: the tree
+  // declares information architecture, and a node may name a place without naming a
+  // page this router draws. React Router renders `<Outlet />` for an element-less
+  // route, which is empty when the node has no children — so such a path matches
+  // instead of falling through to a trailing `*`. Give the node an `element`, or drop
+  // it from the config, if it should 404.
+  const tree = defineRoutes({
+    home: { _metadata: { title: 'Home', element: 'HomePage' } },
+    about: { _metadata: { title: 'About' } },
+  });
+
+  assert.deepEqual(toRouteObjects(tree.routes), [{ path: 'home', element: 'HomePage' }, { path: 'about' }]);
 });
 
 test('metadata is readable and route nodes are frozen', () => {
@@ -337,6 +356,78 @@ test('collected keeps the runtime shape adapters rely on', () => {
     routes.collected.map((route) => route.path),
     routes.paths,
   );
+});
+
+// --- the root path ------------------------------------------------------------
+
+/**
+ * `/` is declared with the empty key, because a path is built by joining a node's key
+ * onto its parent's and `''` joins to exactly `/`. `tests/root-route.test-d.ts` pins
+ * the types; these pin the runtime, so the root cannot quietly stop working.
+ */
+const withRoot = defineRoutes({
+  '': { _metadata: { title: 'Index' } },
+  home: { _metadata: { title: 'Home' } },
+  products: { _metadata: { title: 'Products' }, '[id]': { _metadata: { title: 'Detail' } } },
+});
+
+test('the empty key is the root, and appears in paths as "/"', () => {
+  assert.deepEqual([...withRoot.paths].sort(), ['/', '/home', '/products', '/products/[id]']);
+});
+
+test('the root matches the bare URL and nothing else', () => {
+  assert.equal(withRoot.match('/')?.path, '/');
+  assert.deepEqual(withRoot.match('/')?.params, {});
+  assert.equal(withRoot.match('/home')?.path, '/home');
+  assert.equal(withRoot.match('/nope'), null);
+});
+
+test('buildHref and getMetadata treat the root as any other route', () => {
+  assert.equal(withRoot.buildHref('/'), '/');
+  assert.equal(withRoot.buildHref('/', { searchParams: { q: 'x' } }), '/?q=x');
+  assert.equal(withRoot.getMetadata('/').title, 'Index');
+  assert.equal(withRoot.getNode('/')._metadata.title, 'Index');
+});
+
+test('a tree without a root leaves "/" unmatched rather than inventing one', () => {
+  const noRoot = defineRoutes({ home: { _metadata: { title: 'Home' } } });
+  assert.equal(noRoot.match('/'), null);
+  assert.deepEqual([...noRoot.paths], ['/home']);
+});
+
+test('the root is a sibling of every other route, not their ancestor', () => {
+  // Which is why `useTypedParams('/')` under `/products/42` is a mismatch, not a
+  // parent read: `''` names a page, and nesting under it doubles the separator.
+  assert.equal(isSameOrAncestorRoute('/', '/'), true);
+  assert.equal(isSameOrAncestorRoute('/', '/products'), false);
+});
+
+// --- pathname arguments are checked, not assumed (issue #5) --------------------
+
+test('a route is its own ancestor, and a real ancestor is accepted', () => {
+  assert.equal(isSameOrAncestorRoute('/products/[id]', '/products/[id]'), true);
+  assert.equal(isSameOrAncestorRoute('/products/[id]', '/products/[id]/reviews'), true);
+  assert.equal(isSameOrAncestorRoute('/products', '/products/[id]/reviews'), true);
+});
+
+test('a descendant, a sibling and a shared text prefix are all rejected', () => {
+  assert.equal(isSameOrAncestorRoute('/products/[id]/reviews', '/products/[id]'), false);
+  assert.equal(isSameOrAncestorRoute('/products/[id]', '/docs/[...slug]'), false);
+  // `/product` is a prefix of the *string* `/products`, but not of the route.
+  assert.equal(isSameOrAncestorRoute('/product', '/products'), false);
+});
+
+test('assertRouteMatches names both routes, and reports an unmatched URL separately', () => {
+  assert.throws(() => assertRouteMatches('useTypedParams', '/products/[id]', '/docs/[...slug]'), {
+    name: 'RouteMismatchError',
+    declared: '/products/[id]',
+    matched: '/docs/[...slug]',
+  });
+  assert.throws(() => assertRouteMatches('useTypedParams', '/products/[id]', '/docs/[...slug]'), /was called under "\/docs/);
+  assert.throws(() => assertRouteMatches('useTypedParams', '/products/[id]', null), /matches no declared route/);
+
+  // The accepted cases return nothing rather than throwing.
+  assert.equal(assertRouteMatches('useTypedParams', '/products/[id]', '/products/[id]/reviews'), undefined);
 });
 
 // --- path param schemas (issue #7) --------------------------------------------

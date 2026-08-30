@@ -11,6 +11,12 @@
     },
     "lint": {},
     "lint:fix": {},
-    "type": {}
+    "type": {
+      // The examples resolve `@hyeonqyu/typed-router-*` through node_modules, which
+      // points at `dist` — so on a fresh checkout they type-check against a build that
+      // does not exist yet, and on a stale one against code that no longer matches
+      // `src`. Depending on `^build` makes `yarn type` mean the same thing everywhere.
+      "dependsOn": ["^build"]
+    }
   }
 }

@@ -1,7 +1,7 @@
 import {
+  assertRouteMatches,
   buildHref,
   createRouteTree,
-  type GetRouteNode,
   type ParsePathParamsOptions,
   type ParseSearchParamsOptions,
   type PathParamsOutput,
@@ -12,6 +12,7 @@ import {
   type RouteTreeInput,
   type RouteTreeInputWithMeta,
   type SearchParamsOutput,
+  type UseCurrentRouteNode,
 } from '@hyeonqyu/typed-router-core';
 import { useMemo, type ReactElement, type Ref } from 'react';
 import { useLocation, useNavigate, useRoutes, type RouteObject } from 'react-router-dom';
@@ -50,7 +51,7 @@ export type TypedRoutes<TTree> = RouteTree<TTree> & {
   /** Renders the generated routes. Convenience wrapper over `useRoutes(toRouteObjects())`. */
   TypedRoutes: () => ReactElement | null;
   useCurrentRoute: () => CurrentRoute<TTree>;
-  useCurrentRouteNode: <TPath extends RoutePaths<TTree>>() => GetRouteNode<TTree, TPath> | null;
+  useCurrentRouteNode: UseCurrentRouteNode<TTree>;
   useTypedParams: <TPath extends RoutePaths<TTree>>(pathname: TPath, options?: ParsePathParamsOptions) => PathParamsOutput<TPath, TTree>;
   useTypedPathname: () => RoutePaths<TTree> | null;
   useTypedRouter: () => TypedRouter<TTree>;
@@ -113,11 +114,21 @@ const create = <TTree,>(tree: TTree): TypedRoutes<TTree> => {
 
   /** The current path params, validated and coerced by each segment's declared schema. */
   const useTypedParams = <TPath extends Pathname>(pathname: TPath, options?: ParsePathParamsOptions): PathParamsOutput<TPath, TTree> => {
-    const { params } = useCurrentRoute();
+    const { pathname: matched, params } = useCurrentRoute();
     const onError = options?.onError;
+
+    // Outside the memo, so every render is checked rather than only the ones that recompute.
+    assertRouteMatches('useTypedParams', pathname, matched);
 
     return useMemo(() => routes.parseParams(pathname, params, { onError }), [pathname, params, onError]);
   };
+
+  /** The tree node behind the current URL, checked against the pathname when one is given. */
+  const useCurrentRouteNode = ((pathname?: Pathname) => {
+    const { pathname: matched, node } = useCurrentRoute();
+    if (pathname !== undefined) assertRouteMatches('useCurrentRouteNode', pathname, matched);
+    return node;
+  }) as UseCurrentRouteNode<TTree>;
 
   /** The current search params, validated and coerced by the route's schema. */
   const useTypedSearchParams = <TPath extends Pathname>(
@@ -147,14 +158,17 @@ const create = <TTree,>(tree: TTree): TypedRoutes<TTree> => {
     /** The declared route pattern of the current URL (`/products/[id]`, not `/products/123`). */
     useTypedPathname: () => useCurrentRoute().pathname,
 
-    /** The tree node behind the current URL. Works on dynamic routes. */
-    useCurrentRouteNode: () => useCurrentRoute().node as never,
+    useCurrentRouteNode,
 
     /**
      * The dynamic segments of the current URL, typed from the pathname you pass and
      * validated by whatever `paramSchema` each of its segments declared.
      * Read from the URL rather than `useParams()`, so catch-alls keep their declared
      * name instead of React Router's anonymous `*`.
+     *
+     * The pathname is checked against the route the URL actually matched, so calling
+     * this from a component rendered elsewhere throws instead of returning another
+     * route's params under this route's types.
      */
     useTypedParams,
 

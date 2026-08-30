@@ -1,3 +1,4 @@
+import { PermissionNav } from '../components/PermissionNav';
 import { RouteInspector } from '../components/RouteInspector';
 import { RouteSitemap } from '../components/RouteSitemap';
 import { code, Section } from '../components/ui';
@@ -16,6 +17,8 @@ export const HomePage = () => (
     </Section>
 
     <RouteSitemap />
+
+    <PermissionNav />
 
     <Section title="The React Router config this tree generates">
       <div style={code}>{JSON.stringify(routes.toRouteObjects(), replaceElements, 2)}</div>

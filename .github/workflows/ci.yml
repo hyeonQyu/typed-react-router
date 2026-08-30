@@ -1,0 +1,50 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [develop, main]
+
+# A new push to the same branch makes the in-flight run pointless.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: verify (node ${{ matrix.node }})
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        # The oldest maintained LTS the packages claim to support, and current.
+        node: [20, 22]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Enable Yarn 4
+        run: corepack enable
+
+      - name: Install
+        run: yarn install --immutable
+
+      - name: Lint
+        run: yarn lint
+
+      # `type` depends on `^build` in turbo.json, because the examples resolve the
+      # packages through `dist`. Running it first therefore also proves the build.
+      - name: Type-check
+        run: yarn type
+
+      # Type-level assertions plus the runtime and rendering suites, all against `src`.
+      - name: Test
+        run: yarn test
+
+      - name: Build
+        run: yarn build
