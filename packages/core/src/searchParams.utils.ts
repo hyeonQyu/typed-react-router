@@ -1,4 +1,7 @@
 import type { ParsableSchema } from './schema.types';
+import { getShape, isDefined, toBoolean, toNumber, validate as validateWith } from './schema.utils';
+
+const validate = (schema: ParsableSchema, data: unknown) => validateWith(schema, data, 'search params');
 
 /**
  * What to do when the URL does not satisfy the route's schema.
@@ -32,20 +35,6 @@ export const collectRawSearchParams = (source: Iterable<[string, string]>): RawS
 
   return raw;
 };
-
-const toNumber = (value: string): number | undefined => {
-  if (value.trim() === '') return undefined;
-  const parsed = Number(value);
-  return Number.isNaN(parsed) ? undefined : parsed;
-};
-
-const toBoolean = (value: string): boolean | undefined => {
-  if (value === 'true') return true;
-  if (value === 'false') return false;
-  return undefined;
-};
-
-const isDefined = <T,>(value: T | undefined): value is T => value !== undefined;
 
 /**
  * `buildHref` writes objects and nested arrays as JSON, so a value shaped like one
@@ -83,41 +72,6 @@ const candidatesFor = (value: string | string[]): unknown[] => {
   const asSingleItemList = readings.map((reading) => [reading]);
 
   return [...readings, ...asSingleItemList];
-};
-
-type ValidationResult = { ok: true; value: unknown } | { ok: false; error: unknown };
-
-const validate = (schema: ParsableSchema, data: unknown): ValidationResult => {
-  if (typeof schema.safeParse === 'function') {
-    const result = schema.safeParse(data);
-    return result.success ? { ok: true, value: result.data } : { ok: false, error: result.error };
-  }
-
-  const standard = schema['~standard'];
-  if (standard && typeof standard.validate === 'function') {
-    const result = standard.validate(data);
-
-    if (result instanceof Promise) {
-      throw new Error('typed-router: asynchronous schema validation is not supported for search params.');
-    }
-
-    return result.issues && result.issues.length > 0 ? { ok: false, error: result.issues } : { ok: true, value: result.value };
-  }
-
-  if (typeof schema.parse === 'function') {
-    try {
-      return { ok: true, value: schema.parse(data) };
-    } catch (error) {
-      return { ok: false, error };
-    }
-  }
-
-  return { ok: true, value: data };
-};
-
-const getShape = (schema: ParsableSchema): Record<string, ParsableSchema> | undefined => {
-  const shape = schema.shape;
-  return shape && typeof shape === 'object' ? shape : undefined;
 };
 
 /**

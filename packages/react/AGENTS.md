@@ -122,7 +122,7 @@ How `_metadata` maps onto the generated route:
 | `loader` / `action` / `shouldRevalidate` / `handle` / `middleware` | forwarded to this node's **page** (the index route when split) |
 | `errorElement` / `ErrorBoundary` / `HydrateFallback` / `hydrateFallbackElement` / `caseSensitive` / `id` | forwarded to this node's **route**, not its page |
 | `[id]` key | `path: ':id'` |
-| `[...slug]` / `[[...slug]]` key | `path: '*'` — but `useTypedParams` still reports `slug`, not `*` |
+| `[...slug]` / `[[...slug]]` key | `path: '*'` — but `useTypedParams` still reports `slug`, not `*`, and runs its `paramSchema` |
 | `(group)` key | a pathless layout route |
 
 ## Common operations
@@ -154,7 +154,7 @@ router.refresh();             // navigate(0) — re-runs loaders in a data route
 **Read the current route:**
 
 ```tsx
-const { id } = useTypedParams('/products/[id]');          // id: string
+const { id } = useTypedParams('/products/[id]');          // id: string — or the segment's paramSchema output
 const { slug } = useTypedParams('/docs/[...slug]');       // slug: string[]
 
 const search = useTypedSearchParams('/products');         // schema OUTPUT type
@@ -189,7 +189,7 @@ type ProductsSearch = SearchParams<typeof routes, '/products'>;
 type ProductsMeta = RouteMetadataOf<typeof routes, '/products'>;
 ```
 
-**Shared metadata contract** — declare only your own fields; `title`/`label`/`description`/`accessible` come from `BuiltinMetadata` and already accept `value | (context) => value`, and `searchParamsSchema` comes from it too (always a plain schema, never a function of context). `withMeta` closes `_metadata` to `TMetadata & BuiltinMetadata<TContext>` exactly, so list any React Router fields you use:
+**Shared metadata contract** — declare only your own fields; `title`/`label`/`description`/`accessible` come from `BuiltinMetadata` and already accept `value | (context) => value`, and `searchParamsSchema` / `paramSchema` come from it too (always plain schemas, never functions of context). `withMeta` closes `_metadata` to `TMetadata & BuiltinMetadata<TContext>` exactly, so list any React Router fields you use:
 
 ```tsx
 type Meta = { icon: string; element?: ReactElement };
@@ -229,7 +229,8 @@ resolveMetadata(routes.getMetadata('/dashboard'), { locale: 'ko', isAdmin: true 
 7. **Never hand-write the React Router config.** Generate it with `routes.toRouteObjects()` and compose around it.
 8. **`element` vs `layout`:** `element` is the node's own page; `layout` is the wrapper that renders children through `<Outlet />`. Put a wrapper in `element` on a node with children and it becomes that node's `index` route: it renders at the exact path but never wraps anything, so the children render unwrapped. Put a page in `layout` and the opposite happens — it renders at every descendant path and swallows the children, because a page component has no `<Outlet />`.
 9. **Never read dynamic segments with React Router's `useParams()`.** Catch-alls compile to `*`, so `useParams()` gives you an anonymous `'*'` key. `useTypedParams('/docs/[...slug]')` returns `{ slug: string[] }`.
-10. **`useTypedSearchParams` THROWS by default** (`SearchParamsParseError`) when the URL fails the schema. For user-editable URLs pass `{ onError: 'default' }` (drop bad fields, keep the rest) or `{ onError: 'raw' }` (skip validation). Same option on `routes.parseSearchParams`.
+10. **`useTypedSearchParams` THROWS by default** (`SearchParamsParseError`) when the URL fails the schema. For user-editable URLs pass `{ onError: 'default' }` (drop bad fields, keep the rest) or `{ onError: 'raw' }` (skip validation). Same option on `routes.parseSearchParams`, and on `useTypedParams` / `routes.parseParams` (which throw `PathParamsParseError`).
+11. **Type a dynamic segment with `paramSchema` on the segment's own node.** `'[id]': { _metadata: { paramSchema: z.number() } }` makes `useTypedParams('/products/[id]').id` a `number`, and `/products/abc` throws instead of flowing in as a bad string. The name comes from the tree key, so the schema is bare (`z.number()`), not an object; nested routes inherit it, so `/products/[id]/reviews` needs no redeclaration; a catch-all declares the whole list (`z.array(z.string())`). Segments with no `paramSchema` stay `string` / `string[]`, so this changes nothing until you use it.
 11. **Search params are already coerced; path params never are.** `Number(search.page)` is a double conversion — it is already a `number`. Path params are always `string` / `string[]` when read back (`PathParams` accepts `string | number` when you WRITE them).
 12. **`pathname` is the declared pattern, not the live URL.** `useTypedPathname()` / `useCurrentRoute().pathname` give `/products/[id]`; the live URL is `useCurrentRoute().url`. String-comparing `pathname` to a real URL silently never matches.
 13. **`prefetch` is a no-op** in React Router library mode. Do not build a performance story on it.
@@ -249,7 +250,7 @@ resolveMetadata(routes.getMetadata('/dashboard'), { locale: 'ko', isAdmin: true 
 | `routes.TypedRoutes` | `() => ReactElement \| null` | `useRoutes(toRouteObjects())`, for use inside `<BrowserRouter>`. |
 | `routes.TypedLink` | `(props: TypedLinkProps<TTree, TPath>) => ReactElement` | `Link` taking `href` + `params` / `searchParams` / `hash`. |
 | `routes.useTypedRouter` | `() => TypedRouter<TTree>` | `push` / `replace` / `prefetch` / `back` / `forward` / `refresh`. |
-| `routes.useTypedParams` | `(pathname) => PathParamsOutput<TPath>` | Path params of the current URL, typed from the pattern. Always `string` / `string[]`. |
+| `routes.useTypedParams` | `(pathname, options?) => PathParamsOutput<TPath, TTree>` | Path params of the current URL, typed from the pattern and validated by the segments' `paramSchema`s. Undeclared segments are `string` / `string[]`. |
 | `routes.useTypedSearchParams` | `(pathname, options?) => SearchParamsOutput<TTree, TPath>` | Query string coerced + validated by the route's schema. |
 | `routes.useCurrentRoute` | `() => CurrentRoute<TTree>` | `{ pathname (declared), url (live), node, metadata, params }`. |
 | `routes.useTypedPathname` | `() => RoutePaths<TTree> \| null` | Declared pattern of the current URL. |
@@ -257,6 +258,7 @@ resolveMetadata(routes.getMetadata('/dashboard'), { locale: 'ko', isAdmin: true 
 | `routes.buildHref` | `(path, args?) => string` | Concrete URL from a pattern. URI-encodes; `Date` -> ISO; objects and nested search params -> JSON. Throws on a missing param, and on any value it cannot serialise faithfully. |
 | `routes.match` | `(url) => RouteMatch \| null` | Live URL -> declared route. Static > dynamic > catch-all. |
 | `routes.parseSearchParams` | `(path, raw, options?) => SearchParamsOutput<TTree, TPath>` | Non-hook search-param parse, for loaders/actions. |
+| `routes.parseParams` | `(path, raw, options?) => PathParamsOutput<TPath, TTree>` | Non-hook path-param parse, for loaders/actions: `routes.parseParams(path, args.params)`. |
 | `routes.paths` | `readonly RoutePaths<TTree>[]` | Every navigable pathname. |
 | `routes.collected` | `readonly GetCollectedRoute<TTree>[]` | Navigable routes with compiled segment patterns; each entry keeps its literal `path` and typed `metadata`. |
 | `routes.routes` | `TTree` | The declared tree, structure-frozen. |
@@ -266,5 +268,6 @@ resolveMetadata(routes.getMetadata('/dashboard'), { locale: 'ko', isAdmin: true 
 | `toReactRouterSegment` | `(segment: string) => string` | `[id]` -> `:id`, `[...slug]` -> `*`. |
 | `resolveMetadata` / `resolveMetadataValue` | `(metadata \| value, context) => …` | Resolves `title`/`label`/`description`/`accessible` against a context. |
 | `SearchParamsParseError` | `class extends Error` | Thrown by `onError: 'throw'` (the default). |
-| `buildHref`, `matchRoute`, `collectRoutes`, `parseSearchParams`, `toSearchParamsString`, `isRouteGroup`, `METADATA_KEY` | — | Untyped core primitives, re-exported. Prefer the methods on `routes`. |
+| `PathParamsParseError` | `class extends Error { param, cause }` | The path-param equivalent; `.param` names the segment that failed. |
+| `buildHref`, `matchRoute`, `collectRoutes`, `parseSearchParams`, `parsePathParams`, `toSearchParamsString`, `isRouteGroup`, `METADATA_KEY` | — | Untyped core primitives, re-exported. Prefer the methods on `routes`. |
 | Types | `Pathname`, `SearchParams`, `RouteNodeOf`, `RouteMetadataOf`, `CollectedRouteOf`, `RouteArgs`, `PathParams`, `PathParamsOutput`, `RouteMatch`, `RoutePaths`, `RouteMetadata`, `BuiltinMetadata`, `MetadataValue`, `AnySchema`, `SearchParamsErrorMode`, `TypedLinkProps`, `TypedRouter`, `TypedRoutes`, `CurrentRoute`, `NavigateArgs`, `NavigateArgsTuple`, `NavigateOptions` | All exported from `@hyeonqyu/typed-router-react`. |

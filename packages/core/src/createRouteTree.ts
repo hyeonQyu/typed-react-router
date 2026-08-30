@@ -1,13 +1,21 @@
-import type { GetRouteMetadata, GetRouteNode, RoutePaths } from './path.types';
+import type { GetRouteMetadata, GetRouteNode, PathParamsOutput, RoutePaths } from './path.types';
 import {
   buildHref as buildHrefRaw,
   collectRoutes,
   matchRoute,
   METADATA_KEY,
+  parseSegment,
+  splitPath,
   type BuildHrefArgs,
   type GetCollectedRoute,
   type RouteMatch,
 } from './path.utils';
+import {
+  parsePathParams as parsePathParamsRaw,
+  type ParsePathParamsOptions,
+  type PathParamSchemas,
+  type RawPathParams,
+} from './pathParams.utils';
 import type { ParsableSchema } from './schema.types';
 import {
   collectRawSearchParams,
@@ -90,6 +98,18 @@ export type RouteTree<TTree> = {
     raw: RawSearchParams | Iterable<[string, string]>,
     options?: ParseSearchParamsOptions,
   ) => SearchParamsOutput<TTree, TPath>;
+
+  /**
+   * Validates and coerces raw path params — `match(url)?.params` — using the
+   * `paramSchema` each dynamic segment of the route declared.
+   *
+   * Segments that declare nothing come back as the strings they already were.
+   */
+  parseParams: <TPath extends RoutePaths<TTree>>(
+    path: TPath,
+    raw: RawPathParams,
+    options?: ParsePathParamsOptions,
+  ) => PathParamsOutput<TPath, TTree>;
 };
 
 const isIterableEntries = (value: unknown): value is Iterable<[string, string]> =>
@@ -111,6 +131,33 @@ export const createRouteTree = <TTree>(tree: TTree): RouteTree<TTree> => {
   const getSchema = (path: string): ParsableSchema | undefined =>
     (byPath.get(path)?.metadata?.searchParamsSchema as ParsableSchema | undefined) ?? undefined;
 
+  /**
+   * The schema each dynamic segment of a route declared.
+   *
+   * A segment declares its schema on the node whose key it is, and a node carrying
+   * `_metadata` is a route — so every such node is already in `byPath`, under a
+   * prefix of this route's path. Walking the prefixes therefore collects the
+   * segment's own schema and every ancestor's, which is what nesting inherits.
+   */
+  const collectParamSchemas = (path: string): PathParamSchemas => {
+    const schemas: PathParamSchemas = {};
+    let prefix = '';
+
+    for (const segment of splitPath(path)) {
+      prefix += `/${segment}`;
+
+      const pattern = parseSegment(segment);
+      if (pattern.kind === 'static') continue;
+
+      const schema = byPath.get(prefix)?.metadata?.paramSchema as ParsableSchema | undefined;
+      if (schema) schemas[pattern.name] = schema;
+    }
+
+    return schemas;
+  };
+
+  const paramSchemasByPath = new Map(collected.map((route) => [route.path, collectParamSchemas(route.path)]));
+
   return {
     routes,
     paths,
@@ -126,5 +173,7 @@ export const createRouteTree = <TTree>(tree: TTree): RouteTree<TTree> => {
         options,
         path,
       )) as RouteTree<TTree>['parseSearchParams'],
+    parseParams: ((path: string, raw: RawPathParams, options?: ParsePathParamsOptions) =>
+      parsePathParamsRaw(paramSchemasByPath.get(path) ?? {}, raw, options, path)) as RouteTree<TTree>['parseParams'],
   };
 };

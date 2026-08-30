@@ -1,4 +1,4 @@
-import type { GetRouteNode, PathParams, Simplify } from './path.types';
+import type { GetRouteNode, PathParams, PathParamsOutput, Simplify } from './path.types';
 import type { AnySchema, InferSchemaInput, InferSchemaOutput } from './schema.types';
 
 /** A metadata value that may be computed from the app context instead of fixed. */
@@ -14,6 +14,12 @@ export type BuiltinMetadata<TContext = unknown> = {
   description?: MetadataValue<string, TContext>;
   accessible?: MetadataValue<boolean, TContext>;
   searchParamsSchema?: AnySchema;
+  /**
+   * The schema for *this node's own* dynamic segment — only meaningful on a node
+   * whose key is `[param]`, `[...param]` or `[[...param]]`. Nested routes inherit it,
+   * since the segment is part of their pathname too.
+   */
+  paramSchema?: AnySchema;
 };
 
 /** Loosest shape a `_metadata` block can take. */
@@ -43,6 +49,12 @@ export type SearchParamsInput<TTree, TPath extends string> = InferSchemaInput<Sc
 /** The search params a route *produces* — schema output, with defaults and transforms applied. */
 export type SearchParamsOutput<TTree, TPath extends string> = InferSchemaOutput<SchemaOf<TTree, TPath>>;
 
+/** The path params a route *accepts* — each segment's declared schema input, or text. */
+export type PathParamsInput<TTree, TPath extends string> = PathParams<TPath, TTree>;
+
+/** The path params a route *produces* — each segment's declared schema output, or text. */
+export type ParsedPathParams<TTree, TPath extends string> = PathParamsOutput<TPath, TTree>;
+
 type SchemaOf<TTree, TPath extends string> =
   GetRouteNode<TTree, TPath> extends { _metadata: { searchParamsSchema: infer TSchema } } ? TSchema : never;
 
@@ -53,8 +65,8 @@ type HasKeys<T> = [keyof T] extends [never] ? false : true;
 /** True when a value cannot be omitted, i.e. it has at least one required property. */
 export type HasRequiredKeys<T> = [RequiredKeys<T>] extends [never] ? false : true;
 
-type ParamsArg<TPath extends string> =
-  PathParams<TPath> extends infer TParams
+type ParamsArg<TTree, TPath extends string> =
+  PathParamsInput<TTree, TPath> extends infer TParams
     ? HasRequiredKeys<TParams> extends true
       ? { params: TParams }
       : HasKeys<TParams> extends true
@@ -78,9 +90,7 @@ type SearchParamsArg<TTree, TPath extends string> =
  * optional when they exist but everything in them is optional, and forbidden
  * (`?: never`) when the route has nothing of that kind at all.
  */
-export type RouteArgs<TTree, TPath extends string> = Simplify<
-  ParamsArg<TPath> & SearchParamsArg<TTree, TPath> & { hash?: string }
->;
+export type RouteArgs<TTree, TPath extends string> = Simplify<ParamsArg<TTree, TPath> & SearchParamsArg<TTree, TPath> & { hash?: string }>;
 
 /**
  * Spreadable argument list that makes the options object itself optional when the
@@ -88,6 +98,4 @@ export type RouteArgs<TTree, TPath extends string> = Simplify<
  * `router.push('/products/[id]')` is a compile error.
  */
 export type RouteArgsTuple<TTree, TPath extends string> =
-  HasRequiredKeys<RouteArgs<TTree, TPath>> extends true
-    ? [args: RouteArgs<TTree, TPath>]
-    : [args?: RouteArgs<TTree, TPath>];
+  HasRequiredKeys<RouteArgs<TTree, TPath>> extends true ? [args: RouteArgs<TTree, TPath>] : [args?: RouteArgs<TTree, TPath>];

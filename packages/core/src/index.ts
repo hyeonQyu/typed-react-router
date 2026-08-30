@@ -2,6 +2,7 @@ export { createRouteTree, resolveMetadata, resolveMetadataValue, type RouteTree 
 export {
   defineRoutes,
   type CollectedRouteOf,
+  type Params,
   type Pathname,
   type RouteMetadataOf,
   type RouteNodeOf,
@@ -13,9 +14,9 @@ export type {
   GetRouteMetadata,
   GetRouteNode,
   MetadataKey,
+  PathParamValue,
   PathParams,
   PathParamsOutput,
-  PathParamValue,
   RouteGroupKey,
   RoutePaths,
   SegmentKeys,
@@ -23,11 +24,11 @@ export type {
 } from './path.types';
 
 export {
+  METADATA_KEY,
   buildHref,
   collectRoutes,
   isRouteGroup,
   matchRoute,
-  METADATA_KEY,
   parseSegment,
   splitPath,
   toSearchParamsString,
@@ -39,12 +40,21 @@ export {
   type SegmentPattern,
 } from './path.utils';
 
+export {
+  PathParamsParseError,
+  parsePathParams,
+  type ParsePathParamsOptions,
+  type PathParamSchemas,
+  type PathParamsErrorMode,
+  type RawPathParams,
+} from './pathParams.utils';
+
 export type { AnySchema, InferSchemaInput, InferSchemaOutput, ParsableSchema } from './schema.types';
 
 export {
+  SearchParamsParseError,
   collectRawSearchParams,
   parseSearchParams,
-  SearchParamsParseError,
   type ParseSearchParamsOptions,
   type RawSearchParams,
   type SearchParamsErrorMode,
@@ -54,6 +64,8 @@ export type {
   BuiltinMetadata,
   HasRequiredKeys,
   MetadataValue,
+  ParsedPathParams,
+  PathParamsInput,
   RouteArgs,
   RouteArgsTuple,
   RouteMetadata,

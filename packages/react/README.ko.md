@@ -138,7 +138,9 @@ function Products() {
 }
 ```
 
-여기서는 Suspense 경계나 클라이언트/서버 분리를 신경 쓸 필요가 없습니다 — `useTypedSearchParams`는 React Router의 `useLocation()`을 직접 읽습니다. 손으로 수정한 URL이 검증에 실패했을 때 받는 `onError` 모드는 프로젝트 개요를 참고하세요. 트리 노드나 선언된 패턴만 필요하다면 `useCurrentRouteNode()`와 `useTypedPathname()`도 사용할 수 있습니다.
+동적 세그먼트는 따로 선언하지 않으면 `string`으로 읽힙니다. 그 세그먼트의 노드에 `paramSchema`를 주면 — `'[id]': { _metadata: { title: 'Detail', paramSchema: z.number() } }` — `params.id`는 검증을 거친 `number`가 되고, `/products/abc`는 잘못된 문자열로 흘러 들어오는 대신 `PathParamsParseError`를 던집니다. 이름은 트리 키에서 오므로 스키마는 객체가 아니라 값 스키마 하나이고, 하위 라우트가 이를 상속합니다. `useTypedSearchParams`와 같은 `onError` 모드를 받습니다.
+
+여기서는 Suspense 경계나 클라이언트/서버 분리를 신경 쓸 필요가 없습니다 — `useTypedSearchParams`는 React Router의 `useLocation()`을 직접 읽습니다. 손으로 수정한 URL이 검증에 실패했을 때 두 훅이 받는 `onError` 모드는 프로젝트 개요를 참고하세요. 트리 노드나 선언된 패턴만 필요하다면 `useCurrentRouteNode()`와 `useTypedPathname()`도 사용할 수 있습니다.
 
 ## 메타데이터
 

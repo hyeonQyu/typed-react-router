@@ -13,6 +13,7 @@ export default function ProductDetailPage() {
       <RouteInspector />
 
       <Section title="useTypedParams('/products/[id]')">
+        {/* `[id]` declares `paramSchema: z.number()`, so this is a number at runtime, not '42'. */}
         <Value label="id" value={params.id} />
       </Section>
 

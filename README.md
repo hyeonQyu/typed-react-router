@@ -89,13 +89,47 @@ Reading search params runs your schema for real — values arrive from the URL a
 
 The write side matches it: objects and nested arrays go into the query string as JSON, so `{ f: { min: 1, max: 9 } }` reads back as that same object. A value with no faithful text form — `NaN`, a symbol, a `Map`, a cyclic object — throws where you build the URL rather than landing in it as `[object Object]`. `Date` is written as an ISO string, so declare those fields `z.coerce.date()`; a plain `z.date()` cannot read back a URL typed-router itself produced.
 
-If a hand-edited URL fails validation, you choose what happens:
+### Path params get the same treatment
+
+A dynamic segment reads back as a string unless you say otherwise. Give it a `paramSchema` and it reads back as whatever that schema produces, validated. The segment's *name* already comes from the tree key, so only its type is written down:
+
+```ts
+const routes = defineRoutes({
+  orgs: {
+    '[orgId]': {
+      _metadata: { title: 'Org', paramSchema: z.number() },
+
+      projects: {
+        _metadata: { title: 'Projects' },     // declares nothing; still inherits orgId: number
+      },
+    },
+  },
+});
+
+const { orgId } = useTypedParams('/orgs/[orgId]/projects');
+//      ^? number — no `Number(orgId)` at the call site
+
+routes.buildHref('/orgs/[orgId]', { params: { orgId: 'abc' } });  // ❌ orgId declares z.number()
+// /orgs/abc in the browser → PathParamsParseError
+```
+
+Nested routes inherit every ancestor segment's declaration, so each dynamic segment is declared exactly once. A catch-all declares the whole list it reads back as — `paramSchema: z.array(z.number())` on `[...date]` gives `{ date: number[] }`.
+
+This is opt-in per segment: a segment with no `paramSchema` still reads back as `string` (or `string[]`), exactly as before.
+
+### When a URL doesn't validate
+
+Both halves of the URL answer this the same way, with the same three modes:
 
 ```ts
 useTypedSearchParams('/search', { onError: 'throw' });   // default — surfaces bad links early
 useTypedSearchParams('/search', { onError: 'default' }); // drop bad fields, keep the rest
 useTypedSearchParams('/search', { onError: 'raw' });     // skip validation
+
+useTypedParams('/orgs/[orgId]', { onError: 'default' }); // same modes, same meanings
 ```
+
+`throw` raises `SearchParamsParseError` or `PathParamsParseError`; the latter names the segment that failed in `.param`.
 
 ## Route metadata
 
@@ -127,6 +161,7 @@ routes.buildHref('/products/[id]', { params: { id: 42 } }); // '/products/42'
 routes.match('/products/42');        // → { path: '/products/[id]', params: { id: '42' }, node, metadata }
 routes.getMetadata('/products');
 routes.parseSearchParams('/products', new URLSearchParams(search));
+routes.parseParams('/orgs/[orgId]', { orgId: '42' });       // { orgId: 42 }, per the segment's schema
 ```
 
 ## Packages

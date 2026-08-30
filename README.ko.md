@@ -88,13 +88,47 @@ router.push('/products', { params: { id: 1 } });                // ❌ 동적 �
 
 쓰기 쪽도 이에 맞춰 동작합니다. 객체와 중첩 배열은 JSON으로 쿼리 스트링에 들어가므로, `{ f: { min: 1, max: 9 } }`는 같은 객체로 다시 읽힙니다. 충실한 문자열 표현이 없는 값 — `NaN`, 심볼, `Map`, 순환 참조 객체 — 은 `[object Object]`로 URL에 들어가는 대신 URL을 만드는 그 자리에서 예외를 던집니다. `Date`는 ISO 문자열로 쓰이므로 해당 필드는 `z.coerce.date()`로 선언하세요. 순수한 `z.date()`는 typed-router가 스스로 만든 URL조차 다시 읽지 못합니다.
 
-손으로 수정한 URL이 검증에 실패했을 때의 동작은 선택할 수 있습니다.
+### 경로 파라미터도 똑같이 다뤄집니다
+
+동적 세그먼트는 따로 선언하지 않으면 문자열로 읽힙니다. `paramSchema`를 붙이면 그 스키마가 만들어내는 타입으로, 검증을 거쳐 읽힙니다. 세그먼트의 *이름*은 이미 트리 키가 갖고 있으므로 타입만 적습니다.
+
+```ts
+const routes = defineRoutes({
+  orgs: {
+    '[orgId]': {
+      _metadata: { title: 'Org', paramSchema: z.number() },
+
+      projects: {
+        _metadata: { title: 'Projects' },     // 아무것도 선언하지 않지만 orgId: number를 상속
+      },
+    },
+  },
+});
+
+const { orgId } = useTypedParams('/orgs/[orgId]/projects');
+//      ^? number — 호출부에서 `Number(orgId)`를 쓸 필요가 없습니다
+
+routes.buildHref('/orgs/[orgId]', { params: { orgId: 'abc' } });  // ❌ orgId는 z.number()를 선언함
+// 브라우저에서 /orgs/abc → PathParamsParseError
+```
+
+중첩 라우트는 모든 조상 세그먼트의 선언을 상속하므로, 동적 세그먼트마다 정확히 한 번씩만 선언합니다. catch-all은 읽어들이는 배열 전체를 선언합니다 — `[...date]`에 `paramSchema: z.array(z.number())`를 주면 `{ date: number[] }`가 됩니다.
+
+이 기능은 세그먼트 단위 opt-in입니다. `paramSchema`가 없는 세그먼트는 이전과 똑같이 `string`(또는 `string[]`)으로 읽힙니다.
+
+### URL이 검증에 실패했을 때
+
+URL의 양쪽 절반이 같은 방식으로, 같은 세 가지 모드로 답합니다.
 
 ```ts
 useTypedSearchParams('/search', { onError: 'throw' });   // 기본값 — 잘못된 링크를 조기에 드러냄
 useTypedSearchParams('/search', { onError: 'default' }); // 잘못된 필드만 버리고 나머지는 유지
 useTypedSearchParams('/search', { onError: 'raw' });     // 검증을 건너뜀
+
+useTypedParams('/orgs/[orgId]', { onError: 'default' }); // 같은 모드, 같은 의미
 ```
+
+`throw`는 `SearchParamsParseError` 또는 `PathParamsParseError`를 던지며, 후자는 실패한 세그먼트 이름을 `.param`에 담습니다.
 
 ## 라우트 메타데이터
 
@@ -126,6 +160,7 @@ routes.buildHref('/products/[id]', { params: { id: 42 } }); // '/products/42'
 routes.match('/products/42');        // → { path: '/products/[id]', params: { id: '42' }, node, metadata }
 routes.getMetadata('/products');
 routes.parseSearchParams('/products', new URLSearchParams(search));
+routes.parseParams('/orgs/[orgId]', { orgId: '42' });       // { orgId: 42 } — 세그먼트 스키마에 따라
 ```
 
 ## 패키지 구성

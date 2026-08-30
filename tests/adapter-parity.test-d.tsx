@@ -20,7 +20,8 @@ const tree = {
           page: z.number().default(1),
         }),
       },
-      '[id]': { _metadata: { title: 'Detail' } },
+      // A declared segment: both adapters must read it back as a number, not text.
+      '[id]': { _metadata: { title: 'Detail', paramSchema: z.number() } },
     },
   },
   search: { _metadata: { title: 'Search', searchParamsSchema: z.object({ q: z.string() }) } },
@@ -36,6 +37,7 @@ const useSharedBody = (routes: typeof nextRoutes | typeof reactRoutes) => {
   const node = routes.useCurrentRouteNode();
   const current = routes.useCurrentRoute();
   const params = routes.useTypedParams('/products/[id]');
+  const looseParams = routes.useTypedParams('/products/[id]', { onError: 'default' });
   const query = routes.useTypedSearchParams('/products');
 
   router.push('/home');
@@ -49,7 +51,10 @@ const useSharedBody = (routes: typeof nextRoutes | typeof reactRoutes) => {
   // Enumeration keeps metadata typed identically on both adapters.
   const titles: string[] = routes.collected.map((route) => route.metadata.title);
 
-  return { pathname, node, current, titles, id: params.id, page: query.page, sort: query.sort, url: current.url };
+  // `paramSchema` is honoured identically on both adapters — this line stops compiling if either drifts.
+  const id: number = params.id;
+
+  return { pathname, node, current, titles, id, looseId: looseParams.id, page: query.page, sort: query.sort, url: current.url };
 };
 
 const NextNav = () => {
@@ -86,6 +91,8 @@ const ReactNav = () => {
 
 const NextInvalid = () => {
   const router = nextRoutes.useTypedRouter();
+  // @ts-expect-error — `[id]` declares `z.number()`, so a string is not a valid link
+  router.push('/products/[id]', { params: { id: 'abc' } });
   // @ts-expect-error — dynamic route needs params
   router.push('/products/[id]');
   // @ts-expect-error — `/home` declares no schema
@@ -98,6 +105,8 @@ const NextInvalid = () => {
 
 const ReactInvalid = () => {
   const router = reactRoutes.useTypedRouter();
+  // @ts-expect-error — `[id]` declares `z.number()`, so a string is not a valid link
+  router.push('/products/[id]', { params: { id: 'abc' } });
   // @ts-expect-error — dynamic route needs params
   router.push('/products/[id]');
   // @ts-expect-error — `/home` declares no schema

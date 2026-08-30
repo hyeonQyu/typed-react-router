@@ -338,3 +338,122 @@ test('collected keeps the runtime shape adapters rely on', () => {
     routes.paths,
   );
 });
+
+// --- path param schemas (issue #7) --------------------------------------------
+
+const typed = defineRoutes({
+  orgs: {
+    '[orgId]': {
+      _metadata: { title: 'Org', paramSchema: z.number() },
+      projects: {
+        _metadata: { title: 'Projects' },
+        '[projectId]': { _metadata: { title: 'Project', paramSchema: z.string().min(3) } },
+      },
+    },
+  },
+  posts: { '[slug]': { _metadata: { title: 'Post' } } },
+  archive: { '[...date]': { _metadata: { title: 'Archive', paramSchema: z.array(z.number()).length(3) } } },
+  gallery: { '[[...filters]]': { _metadata: { title: 'Gallery', paramSchema: z.array(z.string()).default([]) } } },
+  tags: { '[[...names]]': { _metadata: { title: 'Tags', paramSchema: z.array(z.string()).optional() } } },
+  flags: { '[on]': { _metadata: { title: 'Flag', paramSchema: z.boolean() } } },
+  codes: { '[code]': { _metadata: { title: 'Code', paramSchema: z.string() } } },
+});
+
+/** Reads a live URL the way a consumer would: match it, then parse what it matched. */
+const readParams = (url, options) => {
+  const matched = typed.match(url);
+  return typed.parseParams(matched.path, matched.params, options);
+};
+
+test('a segment declared as a number reads back as a number', () => {
+  const parsed = readParams('/orgs/42');
+  assert.deepEqual(parsed, { orgId: 42 });
+  assert.equal(typeof parsed.orgId, 'number');
+});
+
+test('a nested route inherits every ancestor segment declaration', () => {
+  const parsed = readParams('/orgs/42/projects/abc');
+  assert.deepEqual(parsed, { orgId: 42, projectId: 'abc' });
+  assert.equal(typeof parsed.orgId, 'number');
+  assert.equal(typeof parsed.projectId, 'string');
+
+  // The intermediate route inherits `orgId` while declaring nothing itself.
+  assert.deepEqual(readParams('/orgs/42/projects'), { orgId: 42 });
+});
+
+test('a URL that does not satisfy the declaration is rejected, not passed through', () => {
+  assert.throws(() => readParams('/orgs/abc'), /path param "orgId" for "\/orgs\/\[orgId\]" failed validation/);
+  assert.throws(() => readParams('/orgs/abc'), { name: 'PathParamsParseError', param: 'orgId' });
+});
+
+test('a segment that declares nothing keeps reading as a string, in the same tree', () => {
+  const parsed = readParams('/posts/123');
+  assert.deepEqual(parsed, { slug: '123' });
+  assert.equal(typeof parsed.slug, 'string');
+});
+
+test('a numeric-looking segment stays a string when the schema asks for one', () => {
+  const parsed = readParams('/codes/0123');
+  assert.equal(parsed.code, '0123');
+  assert.equal(typeof parsed.code, 'string');
+});
+
+test('a boolean segment reads back as a boolean', () => {
+  assert.deepEqual(readParams('/flags/true'), { on: true });
+  assert.throws(() => readParams('/flags/yes'), /path param "on"/);
+});
+
+test('a catch-all is validated as the whole list it reads back as', () => {
+  const parsed = readParams('/archive/2026/8/30');
+  assert.deepEqual(parsed, { date: [2026, 8, 30] });
+  assert.equal(typeof parsed.date[0], 'number');
+
+  assert.throws(() => readParams('/archive/2026/8'), /path param "date"/);
+  assert.throws(() => readParams('/archive/2026/8/oops'), /path param "date"/);
+});
+
+test('an optional catch-all that matched nothing still gets its schema default', () => {
+  assert.deepEqual(readParams('/gallery'), { filters: [] });
+  assert.deepEqual(readParams('/gallery/red/large'), { filters: ['red', 'large'] });
+
+  // `.optional()` produces no value, so the key stays absent as it was before schemas.
+  assert.deepEqual(readParams('/tags'), {});
+  assert.deepEqual(readParams('/tags/a/b'), { names: ['a', 'b'] });
+});
+
+test('onError modes tell the same story as parseSearchParams', () => {
+  assert.throws(() => readParams('/orgs/abc'), /failed validation/);
+  assert.deepEqual(readParams('/orgs/abc', { onError: 'raw' }), { orgId: 'abc' });
+
+  // `default` drops the offending segment, keeping what the schema still produces alone.
+  assert.deepEqual(readParams('/orgs/abc', { onError: 'default' }), {});
+  assert.deepEqual(readParams('/archive/1/2', { onError: 'default' }), {});
+  assert.deepEqual(readParams('/gallery/a/b/c', { onError: 'raw' }), { filters: ['a', 'b', 'c'] });
+});
+
+test('a mixed route reports the segment that failed, not the whole route', () => {
+  assert.throws(() => readParams('/orgs/42/projects/ab'), { param: 'projectId' });
+  assert.deepEqual(readParams('/orgs/42/projects/ab', { onError: 'default' }), { orgId: 42 });
+});
+
+test('a segment is validated after decoding, not before', () => {
+  assert.deepEqual(readParams('/orgs/4%32'), { orgId: 42 });
+  assert.deepEqual(typed.parseParams('/posts/[slug]', { slug: 'a b' }), { slug: 'a b' });
+});
+
+test('a declared segment round-trips through buildHref and parseParams', () => {
+  const href = typed.buildHref('/orgs/[orgId]/projects/[projectId]', { params: { orgId: 42, projectId: 'abc' } });
+  assert.equal(href, '/orgs/42/projects/abc');
+  assert.deepEqual(readParams(href), { orgId: 42, projectId: 'abc' });
+
+  const catchAll = typed.buildHref('/archive/[...date]', { params: { date: [2026, 8, 30] } });
+  assert.equal(catchAll, '/archive/2026/8/30');
+  assert.deepEqual(readParams(catchAll), { date: [2026, 8, 30] });
+});
+
+test('a route whose segments declare nothing behaves exactly as it did before', () => {
+  assert.deepEqual(routes.parseParams('/products/[id]', { id: '123' }), { id: '123' });
+  assert.deepEqual(routes.parseParams('/docs/[...slug]', { slug: ['a', 'b'] }), { slug: ['a', 'b'] });
+  assert.deepEqual(routes.parseParams('/files/[[...path]]', {}), {});
+  assert.deepEqual(routes.parseParams('/home', {}), {});
+});

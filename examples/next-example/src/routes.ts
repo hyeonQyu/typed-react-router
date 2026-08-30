@@ -24,7 +24,9 @@ export const routes = defineRoutes({
     },
 
     '[id]': {
-      _metadata: { title: 'Product detail' },
+      // `paramSchema` types this one segment; its name comes from the key.
+      // `/products/42` reads back as the number 42, and `/products/abc` is rejected.
+      _metadata: { title: 'Product detail', paramSchema: z.number() },
 
       reviews: {
         _metadata: {
