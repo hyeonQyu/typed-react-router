@@ -18,7 +18,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # The oldest maintained LTS the packages claim to support, and current.
+        # The packages declare `engines: node >=18`, so the oldest maintained LTS is
+        # here to keep that claim tested rather than asserted. It is also why `jsdom`
+        # is held at ^29: jsdom 30 requires Node 22.22+, and taking it would quietly
+        # turn this row into a job that cannot run the rendering tests.
         node: [20, 22]
 
     steps:
