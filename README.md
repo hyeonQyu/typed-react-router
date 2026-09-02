@@ -145,7 +145,7 @@ Both halves of the URL answer this the same way, with the same three modes:
 ```ts
 useTypedSearchParams('/search', { onError: 'throw' });   // default — surfaces bad links early
 useTypedSearchParams('/search', { onError: 'default' }); // drop bad fields, keep the rest
-useTypedSearchParams('/search', { onError: 'raw' });     // skip validation
+useTypedSearchParams('/search', { onError: 'raw' });     // return the coerced values instead of throwing
 
 useTypedParams('/orgs/[orgId]', { onError: 'default' }); // same modes, same meanings
 ```

@@ -412,7 +412,7 @@ searchParamsSchema: z.object({
 ```ts
 routes.parseSearchParams('/search', raw);                         // 'throw' (default)
 routes.parseSearchParams('/search', raw, { onError: 'default' }); // drop bad fields, keep the rest
-routes.parseSearchParams('/search', raw, { onError: 'raw' });     // skip validation entirely
+routes.parseSearchParams('/search', raw, { onError: 'raw' });     // return the coerced values instead of throwing
 ```
 
 - `'throw'` raises `SearchParamsParseError`, message
@@ -420,7 +420,9 @@ routes.parseSearchParams('/search', raw, { onError: 'raw' });     // skip valida
   error or the Standard Schema issue array.
 - `'default'` drops the offending fields and re-validates what remains, falling back to the
   schema's own defaults. `{ sort: 'nonsense', page: '5' }` yields `{ page: 5 }`.
-- `'raw'` skips whole-object validation and returns the coerced values as-is.
+- `'raw'` returns the coerced values as-is instead of throwing. Validation still runs — when it
+  succeeds you get the schema's output (defaults applied), exactly as under the other two modes;
+  `'raw'` only changes what happens once it has failed.
 
 ```ts
 import { SearchParamsParseError } from '@hyeonqyu/typed-router-next';
@@ -493,7 +495,7 @@ Failure works exactly like search params, with the same three `onError` modes, a
 ```ts
 useTypedParams('/orgs/[orgId]');                         // '/orgs/abc' → PathParamsParseError
 useTypedParams('/orgs/[orgId]', { onError: 'default' }); // drop the bad segment, keep the rest
-useTypedParams('/orgs/[orgId]', { onError: 'raw' });     // no validation — 'abc' comes through
+useTypedParams('/orgs/[orgId]', { onError: 'raw' });     // on failure, 'abc' comes through as-is
 ```
 
 This is opt-in per segment: with no `paramSchema` anywhere, every path param reads back exactly as it

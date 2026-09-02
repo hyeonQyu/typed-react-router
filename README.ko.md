@@ -144,7 +144,7 @@ URL의 양쪽 절반이 같은 방식으로, 같은 세 가지 모드로 답합�
 ```ts
 useTypedSearchParams('/search', { onError: 'throw' });   // 기본값 — 잘못된 링크를 조기에 드러냄
 useTypedSearchParams('/search', { onError: 'default' }); // 잘못된 필드만 버리고 나머지는 유지
-useTypedSearchParams('/search', { onError: 'raw' });     // 검증을 건너뜀
+useTypedSearchParams('/search', { onError: 'raw' });     // 던지는 대신 변환된 값을 그대로 반환
 
 useTypedParams('/orgs/[orgId]', { onError: 'default' }); // 같은 모드, 같은 의미
 ```

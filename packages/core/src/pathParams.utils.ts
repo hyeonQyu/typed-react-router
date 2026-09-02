@@ -12,7 +12,7 @@ const validate = (schema: ParsableSchema, data: unknown) => validateWith(schema,
  * - `throw`   — raise the validation error (default; surfaces bad links early)
  * - `default` — drop the offending segment, keeping whatever the schema still
  *               produces on its own (`.optional()`, `.default(...)`)
- * - `raw`     — skip validation and return the decoded segment as-is
+ * - `raw`     — return the decoded segment as-is instead of throwing
  */
 export type PathParamsErrorMode = 'throw' | 'default' | 'raw';
 
