@@ -8,7 +8,7 @@ const validate = (schema: ParsableSchema, data: unknown) => validateWith(schema,
  *
  * - `throw`   — raise the validation error (default; surfaces bad links early)
  * - `default` — drop the offending fields and keep whatever still validates
- * - `raw`     — skip validation and return the coerced values as-is
+ * - `raw`     — return the coerced values instead of throwing
  */
 export type SearchParamsErrorMode = 'throw' | 'default' | 'raw';
 

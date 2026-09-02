@@ -153,7 +153,7 @@ schema validation either; feed its `params` to `parseParams` for that.
 routes.parseParams('/products/[id]', { id: '42' });                            // { id: 42 } if [id] declares z.number()
 routes.parseParams('/products/[id]', { id: 'abc' });                           // throws PathParamsParseError
 routes.parseParams('/products/[id]', { id: 'abc' }, { onError: 'default' });   // {} — drop the bad segment
-routes.parseParams('/products/[id]', { id: 'abc' }, { onError: 'raw' });       // { id: 'abc' } — no validation
+routes.parseParams('/products/[id]', { id: 'abc' }, { onError: 'raw' });       // { id: 'abc' } — the raw segment, not thrown
 
 const match = routes.match(url);
 if (match) routes.parseParams(match.path as AppPath, match.params);
@@ -171,7 +171,7 @@ matched nothing is validated against `undefined`, so `.default([])` and `.option
 routes.parseSearchParams('/products', { page: '2', tags: ['a', 'b'] });        // { page: 2, tags: ['a','b'] }
 routes.parseSearchParams('/products', new URLSearchParams('page=3&tags=a&tags=b'));
 routes.parseSearchParams('/products', { sort: 'nonsense' }, { onError: 'default' }); // drop bad fields
-routes.parseSearchParams('/products', { page: 'nope' }, { onError: 'raw' });         // no validation
+routes.parseSearchParams('/products', { page: 'nope' }, { onError: 'raw' });         // the coerced values, not thrown
 ```
 
 Accepts a `Record<string, string | string[]>`, a `URLSearchParams`, or any iterable of entries
