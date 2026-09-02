@@ -32,3 +32,6 @@ build
 
 # Local-only working notes (never committed)
 .notes
+
+# Local-only agent skill definitions
+.agents
