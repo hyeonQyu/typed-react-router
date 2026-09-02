@@ -10,6 +10,9 @@ import { ProfilePage } from './pages/ProfilePage';
 import { ReviewsPage } from './pages/ReviewsPage';
 import { SearchPage } from './pages/SearchPage';
 
+/** Whoever is looking at the app. `accessible` below is a function of this. */
+export type AppContext = { role: 'guest' | 'member' | 'admin' };
+
 /**
  * The same tree the Next.js example declares — only the metadata differs, because
  * React Router needs to know which element renders each route.
@@ -17,15 +20,19 @@ import { SearchPage } from './pages/SearchPage';
  * `element` is the node's own page; `layout` wraps its children through `<Outlet />`.
  * Any other React Router field (`loader`, `action`, `lazy`, `errorElement`, `handle`, …)
  * is forwarded to the generated route object untouched.
+ *
+ * `label` and `accessible` are built-ins: plain values, or functions of an app context
+ * that `resolveMetadata` evaluates. `PermissionNav` builds a menu out of them.
  */
 export const routes = defineRoutes({
   home: {
-    _metadata: { title: 'Home', element: <HomePage /> },
+    _metadata: { title: 'Home', label: 'Home', element: <HomePage /> },
   },
 
   products: {
     _metadata: {
       title: 'Products',
+      label: 'Products',
       element: <ProductsPage />,
       searchParamsSchema: z.object({
         sort: z.enum(['price-asc', 'price-desc', 'name']).optional(),
@@ -53,6 +60,7 @@ export const routes = defineRoutes({
   search: {
     _metadata: {
       title: 'Search',
+      label: 'Search',
       element: <SearchPage />,
       searchParamsSchema: z.object({
         q: z.string(),
@@ -69,8 +77,23 @@ export const routes = defineRoutes({
   // `AppLayout` without `(account)` ever appearing in the URL.
   '(account)': {
     _metadata: { layout: <AppLayout /> },
-    profile: { _metadata: { title: 'Profile', element: <ProfilePage /> } },
-    orders: { _metadata: { title: 'Orders', element: <OrdersPage /> } },
+    profile: {
+      // Signed in or not is a runtime question, so `accessible` answers it at runtime.
+      _metadata: {
+        title: 'Profile',
+        label: 'Profile',
+        element: <ProfilePage />,
+        accessible: (context: AppContext) => context.role !== 'guest',
+      },
+    },
+    orders: {
+      _metadata: {
+        title: 'Orders',
+        label: 'Orders',
+        element: <OrdersPage />,
+        accessible: (context: AppContext) => context.role === 'admin',
+      },
+    },
   },
 });
 

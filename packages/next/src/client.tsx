@@ -1,7 +1,7 @@
 'use client';
 
 import type { ParsePathParamsOptions, ParseSearchParamsOptions, RouteMetadata, RouteTree } from '@hyeonqyu/typed-router-core';
-import { buildHref, type BuildHrefArgs } from '@hyeonqyu/typed-router-core';
+import { assertRouteMatches, buildHref, type BuildHrefArgs } from '@hyeonqyu/typed-router-core';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useMemo } from 'react';
 import type { NavigateOptions } from './navigation.types';
@@ -52,11 +52,21 @@ export const useTypedSearchParamsImpl = (routes: RouteTree<unknown>, pathname: s
 type ParseUntyped = (path: string, raw: Iterable<[string, string]>, options?: ParseSearchParamsOptions) => unknown;
 
 export const useTypedParamsImpl = (routes: RouteTree<unknown>, pathname: string, options?: ParsePathParamsOptions): unknown => {
-  const { params } = useCurrentRouteImpl(routes);
+  const { pathname: matched, params } = useCurrentRouteImpl(routes);
   const onError = options?.onError;
   const parse = routes.parseParams as ParseParamsUntyped;
 
+  // Outside the memo, so every render is checked rather than only the ones that recompute.
+  assertRouteMatches('useTypedParams', pathname, matched);
+
   return useMemo(() => parse(pathname, params, { onError }), [parse, pathname, params, onError]);
+};
+
+/** The node behind the current URL, checked against the pathname when one is given. */
+export const useCurrentRouteNodeImpl = (routes: RouteTree<unknown>, pathname?: string): unknown => {
+  const { pathname: matched, node } = useCurrentRouteImpl(routes);
+  if (pathname !== undefined) assertRouteMatches('useCurrentRouteNode', pathname, matched);
+  return node;
 };
 
 type ParseParamsUntyped = (

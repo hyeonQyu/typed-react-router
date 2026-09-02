@@ -25,6 +25,21 @@ export type BuiltinMetadata<TContext = unknown> = {
 /** Loosest shape a `_metadata` block can take. */
 export type RouteMetadata = Record<string, unknown>;
 
+/** The built-in fields `resolveMetadata` evaluates against a context. */
+export type ResolvableMetadataKey = 'title' | 'label' | 'description' | 'accessible';
+
+/** `(context) => TValue` collapses to `TValue`; anything else is already its own value. */
+type Resolved<TValue> = TValue extends (context: never) => infer TResolved ? TResolved : TValue;
+
+/**
+ * Metadata as `resolveMetadata` returns it: the four built-in fields have been called
+ * and are now plain values, and every other field — including your own functions, like
+ * a `loader` — is untouched.
+ */
+export type ResolvedMetadata<TMetadata> = {
+  [K in keyof TMetadata]: K extends ResolvableMetadataKey ? Resolved<TMetadata[K]> : TMetadata[K];
+};
+
 export interface RouteNodeInput {
   readonly _metadata?: RouteMetadata;
   readonly [segment: string]: unknown;
@@ -38,10 +53,19 @@ export type RouteTreeInputWithMeta<TMetadata, TContext> = {
   readonly [segment: string]: RouteNodeInputWithMeta<TMetadata, TContext>;
 };
 
-export interface RouteNodeInputWithMeta<TMetadata, TContext> {
+/**
+ * A node under a shared metadata contract. Recursive on purpose: nesting a route
+ * deeper must not exempt it, or the contract would only ever hold one level down
+ * from the root — which reads as enforcement while being none.
+ *
+ * The index signature repeats the metadata type because TypeScript requires a
+ * declared property to conform to its own index signature, and `_metadata` is a
+ * property of the node like any other.
+ */
+export type RouteNodeInputWithMeta<TMetadata, TContext> = {
   readonly _metadata?: TMetadata & BuiltinMetadata<TContext>;
-  readonly [segment: string]: unknown;
-}
+  readonly [segment: string]: RouteNodeInputWithMeta<TMetadata, TContext> | (TMetadata & BuiltinMetadata<TContext>) | undefined;
+};
 
 /** The search params a route *accepts* — schema input, so `.default()` fields stay optional. */
 export type SearchParamsInput<TTree, TPath extends string> = InferSchemaInput<SchemaOf<TTree, TPath>>;

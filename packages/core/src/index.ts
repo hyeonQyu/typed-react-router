@@ -21,13 +21,17 @@ export type {
   RoutePaths,
   SegmentKeys,
   Simplify,
+  UseCurrentRouteNode,
 } from './path.types';
 
 export {
   METADATA_KEY,
+  RouteMismatchError,
+  assertRouteMatches,
   buildHref,
   collectRoutes,
   isRouteGroup,
+  isSameOrAncestorRoute,
   matchRoute,
   parseSegment,
   splitPath,
@@ -66,6 +70,8 @@ export type {
   MetadataValue,
   ParsedPathParams,
   PathParamsInput,
+  ResolvableMetadataKey,
+  ResolvedMetadata,
   RouteArgs,
   RouteArgsTuple,
   RouteMetadata,

@@ -23,7 +23,14 @@ import {
   type ParseSearchParamsOptions,
   type RawSearchParams,
 } from './searchParams.utils';
-import type { MetadataValue, RouteArgsTuple, RouteMetadata, SearchParamsOutput } from './tree.types';
+import type {
+  MetadataValue,
+  ResolvableMetadataKey,
+  ResolvedMetadata,
+  RouteArgsTuple,
+  RouteMetadata,
+  SearchParamsOutput,
+} from './tree.types';
 
 /** Resolves a metadata value that may be a plain value or a function of the app context. */
 export const resolveMetadataValue = <TValue, TContext>(
@@ -31,17 +38,20 @@ export const resolveMetadataValue = <TValue, TContext>(
   context: TContext,
 ): TValue | undefined => (typeof value === 'function' ? (value as (context: TContext) => TValue)(context) : value);
 
-const BUILTIN_RESOLVABLE_KEYS = ['title', 'label', 'description', 'accessible'] as const;
+const BUILTIN_RESOLVABLE_KEYS: readonly ResolvableMetadataKey[] = ['title', 'label', 'description', 'accessible'];
 
 /**
  * Resolves the built-in metadata fields against a context, leaving every other
  * field (including your own functions such as `loader`) untouched.
+ *
+ * The return type says so: a `title` declared as `(context) => string` reads back as
+ * a `string`, because that is what this function just made it.
  */
 export const resolveMetadata = <TMetadata extends RouteMetadata, TContext>(
   metadata: TMetadata | undefined,
   context: TContext,
-): TMetadata | undefined => {
-  if (!metadata) return metadata;
+): ResolvedMetadata<TMetadata> | undefined => {
+  if (!metadata) return undefined;
 
   const resolved: RouteMetadata = { ...metadata };
 
@@ -49,7 +59,7 @@ export const resolveMetadata = <TMetadata extends RouteMetadata, TContext>(
     if (key in resolved) resolved[key] = resolveMetadataValue(resolved[key], context);
   }
 
-  return resolved as TMetadata;
+  return resolved as ResolvedMetadata<TMetadata>;
 };
 
 /** Freezes the tree structure without touching metadata contents (schemas, elements, functions). */

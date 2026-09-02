@@ -1,6 +1,5 @@
 import {
   createRouteTree,
-  type GetRouteNode,
   type ParsePathParamsOptions,
   type ParseSearchParamsOptions,
   type PathParamsOutput,
@@ -11,9 +10,10 @@ import {
   type RouteTreeInput,
   type RouteTreeInputWithMeta,
   type SearchParamsOutput,
+  type UseCurrentRouteNode,
 } from '@hyeonqyu/typed-router-core';
 import type { ReactElement, Ref } from 'react';
-import { useCurrentRouteImpl, useTypedParamsImpl, useTypedRouterImpl, useTypedSearchParamsImpl } from './client';
+import { useCurrentRouteImpl, useCurrentRouteNodeImpl, useTypedParamsImpl, useTypedRouterImpl, useTypedSearchParamsImpl } from './client';
 import type { NavigateArgsTuple } from './navigation.types';
 import { createTypedLink, type TypedLinkProps } from './TypedLink';
 
@@ -39,7 +39,7 @@ export type TypedRouter<TTree> = {
 export type TypedRoutes<TTree> = RouteTree<TTree> & {
   TypedLink: <TPath extends RoutePaths<TTree>>(props: TypedLinkProps<TTree, TPath> & { ref?: Ref<HTMLAnchorElement> }) => ReactElement;
   useCurrentRoute: () => CurrentRoute<TTree>;
-  useCurrentRouteNode: <TPath extends RoutePaths<TTree>>() => GetRouteNode<TTree, TPath> | null;
+  useCurrentRouteNode: UseCurrentRouteNode<TTree>;
   useTypedParams: <TPath extends RoutePaths<TTree>>(pathname: TPath, options?: ParsePathParamsOptions) => PathParamsOutput<TPath, TTree>;
   useTypedPathname: () => RoutePaths<TTree> | null;
   useTypedRouter: () => TypedRouter<TTree>;
@@ -66,13 +66,17 @@ const create = <TTree,>(tree: TTree): TypedRoutes<TTree> => {
     /** The declared route pattern of the current URL (`/products/[id]`, not `/products/123`). */
     useTypedPathname: () => useCurrentRouteImpl(untyped).pathname as RoutePaths<TTree> | null,
 
-    /** The tree node behind the current URL. Works on dynamic routes. */
-    useCurrentRouteNode: () => useCurrentRouteImpl(untyped).node as never,
+    /** The tree node behind the current URL, checked against the pathname when one is given. */
+    useCurrentRouteNode: ((pathname?: string) => useCurrentRouteNodeImpl(untyped, pathname)) as UseCurrentRouteNode<TTree>,
 
     /**
      * The dynamic segments of the current URL, typed from the pathname you pass and
      * validated by whatever `paramSchema` each of its segments declared.
      * Read from the URL rather than `useParams()`, so catch-alls keep their declared name.
+     *
+     * The pathname is checked against the route the URL actually matched, so calling
+     * this from a component rendered elsewhere throws instead of returning another
+     * route's params under this route's types.
      */
     useTypedParams: (pathname, options) => useTypedParamsImpl(untyped, pathname, options) as never,
 

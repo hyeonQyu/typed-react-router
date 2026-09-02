@@ -24,8 +24,12 @@ type HasMetadata<TNode> = TNode extends { _metadata: unknown } ? true : false;
  * metadata contribute a segment but are not themselves destinations. Route group
  * keys `(name)` are skipped entirely.
  *
- * There is no artificial depth cap — a route tree is a finite object literal, so
- * the recursion always terminates on its own.
+ * This type imposes no depth cap of its own — a route tree is a finite object literal,
+ * so the recursion terminates on its own. TypeScript's instantiation limit is the real
+ * ceiling: TS2589 starts firing a little past 30 levels of nesting, and exactly where
+ * depends on the tree's shape and the compiler version. `tests/stress.fixtures.ts` pins
+ * 30 levels as compiling, which is already far deeper than an information architecture
+ * anyone writes by hand.
  */
 export type RoutePaths<TTree> = PathsOf<TTree, ''>;
 
@@ -131,3 +135,15 @@ export type GetRouteNode<TTree, TPath extends string> = TPath extends `/${infer 
 /** The metadata declared on the node a pathname points at. */
 export type GetRouteMetadata<TTree, TPath extends string> =
   GetRouteNode<TTree, TPath> extends { _metadata: infer TMetadata } ? TMetadata : never;
+
+/**
+ * `useCurrentRouteNode`'s signature, shared by both adapters.
+ *
+ * Passing the pathname checks it against the live URL and narrows the result to that
+ * route's node. Omitting it keeps the older call shape, and the node comes back as the
+ * union of every declared node — which is all an unchecked call can honestly promise.
+ */
+export type UseCurrentRouteNode<TTree> = {
+  <TPath extends RoutePaths<TTree>>(pathname: TPath): GetRouteNode<TTree, TPath> | null;
+  (): GetRouteNode<TTree, RoutePaths<TTree>> | null;
+};

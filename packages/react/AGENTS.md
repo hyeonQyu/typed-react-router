@@ -4,7 +4,9 @@ The route tree object is the single source of truth for this app's information a
 
 That claim needs no qualifying here, and there is nothing to check: `toRouteObjects()` *builds* the router configuration from the tree, so a route cannot exist without being declared in it. The Next adapter ships `assertRoutesMatchAppDir` precisely because it has no equivalent — there, `src/app/` decides route existence and the tree only mirrors it. Never suggest that helper for a React Router app; it does not apply, and there is no filesystem for it to read.
 
-Import **everything** from `@hyeonqyu/typed-router-react`. It re-exports the part of the core surface consumers need (see the API reference below for the exact list), so `@hyeonqyu/typed-router-core` must never be added to the consumer's `package.json`. If a core type is not in that list, it is internal — reach for the documented equivalent rather than importing from core.
+**This guide is React Router's library mode**, the one where the app owns its router configuration. React Router 7 also has a **framework mode** (`@react-router/dev`, an `app/routes.ts` config), and there `toRouteObjects()` does not apply: it emits `element` / `Component`, React elements resolved at runtime, while framework mode's `RouteConfigEntry` wants `file`, a module path resolved at build time so the framework can code-split each route and generate its types. Never suggest feeding one to the other. Everything else about the tree still works there — `paths`, `buildHref`, `match`, `parseParams`, `parseSearchParams`, `collected` — and in that mode the right import **is** `@hyeonqyu/typed-router-core`, because the framework brings its own `<Link>` and hooks. See `examples/react-router-framework-example`.
+
+Otherwise, import **everything** from `@hyeonqyu/typed-router-react`. It re-exports the part of the core surface consumers need (see the API reference below for the exact list), so `@hyeonqyu/typed-router-core` must never be added to the consumer's `package.json`. If a core type is not in that list, it is internal — reach for the documented equivalent rather than importing from core.
 
 ```bash
 npm install @hyeonqyu/typed-router-react react-router-dom zod   # zod is OPTIONAL
@@ -125,6 +127,7 @@ How `_metadata` maps onto the generated route:
 | `errorElement` / `ErrorBoundary` / `HydrateFallback` / `hydrateFallbackElement` / `caseSensitive` / `id` | forwarded to this node's **route**, not its page |
 | `[id]` key | `path: ':id'` |
 | `[...slug]` / `[[...slug]]` key | `path: '*'` — but `useTypedParams` still reports `slug`, not `*`, and runs its `paramSchema` |
+| no page field at all | `{ path }` with nothing to render — the route **matches** and draws nothing, rather than falling through to a trailing `*`. Intended: a node may name a place in the IA without naming a page. Give it a page, or leave it out of the config, if it should 404 |
 | `(group)` key | a pathless layout route |
 
 ## Common operations
@@ -158,6 +161,9 @@ router.refresh();             // navigate(0) — re-runs loaders in a data route
 ```tsx
 const { id } = useTypedParams('/products/[id]');          // id: string — or the segment's paramSchema output
 const { slug } = useTypedParams('/docs/[...slug]');       // slug: string[]
+// The pathname is checked against the route the live URL matched. An ancestor is fine —
+// `useTypedParams('/products/[id]')` under /products/42/reviews — anything else throws
+// `RouteMismatchError` rather than returning another route's params under these types.
 
 const search = useTypedSearchParams('/products');         // schema OUTPUT type
 search.page;  // number — `?page=2` really is 2, and the default 1 is applied
@@ -167,7 +173,8 @@ const { pathname, url, node, metadata, params } = useCurrentRoute();
 // on /products/42 -> pathname: '/products/[id]' (DECLARED pattern), url: '/products/42'
 
 routes.useTypedPathname();      // === useCurrentRoute().pathname
-routes.useCurrentRouteNode();   // === useCurrentRoute().node
+routes.useCurrentRouteNode('/products/[id]');  // checked, and narrowed to that route's node
+routes.useCurrentRouteNode();   // unchecked; === useCurrentRoute().node, typed as the union of all nodes
 ```
 
 **Outside components** (loaders, actions, tests, plain modules) — same object, no hooks:
@@ -256,7 +263,7 @@ resolveMetadata(routes.getMetadata('/dashboard'), { locale: 'ko', isAdmin: true 
 | `routes.useTypedSearchParams` | `(pathname, options?) => SearchParamsOutput<TTree, TPath>` | Query string coerced + validated by the route's schema. |
 | `routes.useCurrentRoute` | `() => CurrentRoute<TTree>` | `{ pathname (declared), url (live), node, metadata, params }`. |
 | `routes.useTypedPathname` | `() => RoutePaths<TTree> \| null` | Declared pattern of the current URL. |
-| `routes.useCurrentRouteNode` | `<TPath>() => GetRouteNode<TTree, TPath> \| null` | Tree node behind the current URL. |
+| `routes.useCurrentRouteNode` | `<TPath>(pattern: TPath) => GetRouteNode<TTree, TPath> \| null` / `() => GetRouteNode<TTree, RoutePaths<TTree>> \| null` | Tree node behind the current URL. With a pattern it is checked against the live URL and narrows; without one it is unchecked and returns the union. |
 | `routes.buildHref` | `(path, args?) => string` | Concrete URL from a pattern. URI-encodes; `Date` -> ISO; objects and nested search params -> JSON. Throws on a missing param, and on any value it cannot serialise faithfully. |
 | `routes.match` | `(url) => RouteMatch \| null` | Live URL -> declared route. Static > dynamic > catch-all. |
 | `routes.parseSearchParams` | `(path, raw, options?) => SearchParamsOutput<TTree, TPath>` | Non-hook search-param parse, for loaders/actions. |

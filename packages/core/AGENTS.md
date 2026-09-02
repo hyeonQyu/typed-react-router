@@ -313,7 +313,7 @@ your navigation functions inherit the same required/optional/forbidden argument 
 | Name | Signature | What it does |
 | --- | --- | --- |
 | `defineRoutes` | `(tree) => TypedRoutes<TTree>` | Entry point. Declares the IA and returns the typed routes object. |
-| `defineRoutes.withMeta` | `<TMetadata, TContext>() => (tree) => TypedRoutes<TTree>` | Same, constraining **top-level** `_metadata` blocks to `TMetadata & BuiltinMetadata<TContext>`. Nested nodes are typed `unknown`, so their `_metadata` is inferred but **not** checked against `TMetadata` — verify deep metadata yourself. |
+| `defineRoutes.withMeta` | `<TMetadata, TContext>() => (tree) => TypedRoutes<TTree>` | Same, constraining **every** `_metadata` block in the tree to `TMetadata & BuiltinMetadata<TContext>`, at any depth. Per-node inference still holds: literal types and fields outside `TMetadata` survive. A node with no `_metadata` is organisational, so nothing is enforced on it. |
 | `routes.routes` | `TTree` | The declared tree, structurally frozen. What adapters consume. |
 | `routes.paths` | `readonly RoutePaths<TTree>[]` | Every navigable pathname at runtime. |
 | `routes.collected` | `readonly GetCollectedRoute<TTree>[]` | `{ path, segments, node, metadata }` per route, one union member each — `path` stays a literal and `metadata` stays typed while enumerating. |
